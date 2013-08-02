@@ -1,0 +1,85 @@
+#include <avr/io.h>
+#include "sram_defs.h"
+
+.section .text
+
+.global sram_write_char
+sram_write_char:
+	// get pointer from C call to X register
+	movw	r26, r24
+
+	// set bus direction to output
+	ldi	r18, 0xff;
+	out	_SFR_IO_ADDR(SRAM_PORT_IO_DDR), r18
+
+	// turn all latches inactive
+	in	r18, _SFR_IO_ADDR(SRAM_PORT_CTL)
+	ori	r18, (_BV(SRAM_PIN_LATCH0) | _BV(SRAM_PIN_LATCH1) | _BV(SRAM_PIN_LATCH2))
+	out	_SFR_IO_ADDR(SRAM_PORT_CTL), r18	
+
+	// load first byte and latch it to latch 0
+	ld	r18, X+
+	out	_SFR_IO_ADDR(SRAM_PORT_IO), r18
+	cbi	_SFR_IO_ADDR(SRAM_PORT_CTL), SRAM_PIN_LATCH0
+
+	// load second byte und latch it to latch 1
+	ld	r18, X+
+	out	_SFR_IO_ADDR(SRAM_PORT_IO), r18
+	cbi	_SFR_IO_ADDR(SRAM_PORT_CTL), SRAM_PIN_LATCH1
+
+	// load 3rd (last) byte and latch it to latch 2
+	ld	r18, X+
+	out	_SFR_IO_ADDR(SRAM_PORT_IO), r18
+	cbi	_SFR_IO_ADDR(SRAM_PORT_CTL), SRAM_PIN_LATCH2
+
+	// write byte to sram
+	out	_SFR_IO_ADDR(SRAM_PORT_IO), r22
+	cbi	_SFR_IO_ADDR(SRAM_PORT_CTL), SRAM_PIN_WE
+	nop
+	nop
+	sbi	_SFR_IO_ADDR(SRAM_PORT_CTL), SRAM_PIN_WE
+
+	ret	
+
+.global sram_read_char
+sram_read_char:
+	// get pointer from C call to X register
+	movw	r26, r24
+
+	// set bus direction to output
+	ldi	r18, 0xff
+	out	_SFR_IO_ADDR(SRAM_PORT_IO_DDR), r18
+
+	// turn all latches inactive
+	in	r18, _SFR_IO_ADDR(SRAM_PORT_CTL)
+	ori	r18, (_BV(SRAM_PIN_LATCH0) | _BV(SRAM_PIN_LATCH1) | _BV(SRAM_PIN_LATCH2))
+	out	_SFR_IO_ADDR(SRAM_PORT_CTL), r18	
+
+	// load first byte and latch it to latch 0
+	ld	r18, X+
+	out	_SFR_IO_ADDR(SRAM_PORT_IO), r18
+	cbi	_SFR_IO_ADDR(SRAM_PORT_CTL), SRAM_PIN_LATCH0
+
+	// load second byte und latch it to latch 1
+	ld	r18, X+
+	out	_SFR_IO_ADDR(SRAM_PORT_IO), r18
+	cbi	_SFR_IO_ADDR(SRAM_PORT_CTL), SRAM_PIN_LATCH1
+
+	// load 3rd (last) byte and latch it to latch 2
+	ld	r18, X+
+	out	_SFR_IO_ADDR(SRAM_PORT_IO), r18
+	cbi	_SFR_IO_ADDR(SRAM_PORT_CTL), SRAM_PIN_LATCH2
+
+	// set bus direction to input
+	eor	r18, r18
+	out	_SFR_IO_ADDR(SRAM_PORT_IO_DDR), r18
+
+	// read byte from sram
+	cbi	_SFR_IO_ADDR(SRAM_PORT_CTL), SRAM_PIN_OE
+	nop
+	nop
+	in	r24, _SFR_IO_ADDR(SRAM_PORTIN_IO)
+	sbi	_SFR_IO_ADDR(SRAM_PORT_CTL), SRAM_PIN_OE
+
+	ret
+

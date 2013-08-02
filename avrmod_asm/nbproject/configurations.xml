@@ -1,0 +1,252 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configurationDescriptor version="89">
+  <logicalFolder name="root" displayName="root" projectFiles="true" kind="ROOT">
+    <df root="." name="avrmod_asm">
+      <df name="mmc">
+        <in>byteordering.c</in>
+        <in>byteordering.h</in>
+        <in>fat.c</in>
+        <in>fat.h</in>
+        <in>fat_config.h</in>
+        <in>main.c</in>
+        <in>partition.c</in>
+        <in>partition.h</in>
+        <in>partition_config.h</in>
+        <in>sd-reader_config.h</in>
+        <in>sd_raw.c</in>
+        <in>sd_raw.h</in>
+        <in>sd_raw_config.h</in>
+        <in>uart.c</in>
+        <in>uart.h</in>
+      </df>
+      <df name="modplay">
+        <in>arch.h</in>
+        <in>effects_mod.c</in>
+        <in>effects_mod.h</in>
+        <in>loader_mod.c</in>
+        <in>loader_mod.h</in>
+        <in>module.h</in>
+        <in>player.c</in>
+        <in>player.h</in>
+        <in>protracker.c</in>
+        <in>protracker.h</in>
+      </df>
+      <df name="pff">
+        <in>diskio.c</in>
+        <in>diskio.h</in>
+        <in>integer.h</in>
+        <in>pff.c</in>
+        <in>pff.h</in>
+      </df>
+      <in>sram.h</in>
+      <in>sram.sx</in>
+      <in>sram_defs.h</in>
+      <in>test.c</in>
+      <in>uart.c</in>
+      <in>uart.h</in>
+    </df>
+    <logicalFolder name="ExternalFiles"
+                   displayName="Important Files"
+                   projectFiles="false"
+                   kind="IMPORTANT_FILES_FOLDER">
+      <itemPath>Makefile</itemPath>
+    </logicalFolder>
+  </logicalFolder>
+  <sourceFolderFilter>^(nbproject)$</sourceFolderFilter>
+  <sourceRootList>
+    <Elem>.</Elem>
+  </sourceRootList>
+  <projectmakefile>Makefile</projectmakefile>
+  <confs>
+    <conf name="Default" type="0">
+      <toolsSet>
+        <remote-sources-mode>LOCAL_SOURCES</remote-sources-mode>
+        <compilerSet>avrgcc|GNU</compilerSet>
+        <dependencyChecking>false</dependencyChecking>
+        <rebuildPropChanged>false</rebuildPropChanged>
+      </toolsSet>
+      <codeAssistance>
+      </codeAssistance>
+      <makefileType>
+        <makeTool>
+          <buildCommandWorkingDir>.</buildCommandWorkingDir>
+          <buildCommand>${MAKE} -f Makefile</buildCommand>
+          <cleanCommand>${MAKE} -f Makefile clean</cleanCommand>
+          <executablePath></executablePath>
+          <cTool>
+            <standard>3</standard>
+          </cTool>
+        </makeTool>
+      </makefileType>
+      <folder path="avrmod_asm/pff">
+        <cTool>
+          <preprocessorList>
+            <Elem>__AVR_ATmega32__</Elem>
+          </preprocessorList>
+        </cTool>
+      </folder>
+      <item path="mmc/byteordering.c" ex="false" tool="0" flavor2="2">
+        <cTool>
+          <incDir>
+            <pElem>.</pElem>
+          </incDir>
+          <preprocessorList>
+            <Elem>F_CPU=16000000UL</Elem>
+          </preprocessorList>
+        </cTool>
+      </item>
+      <item path="mmc/byteordering.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="mmc/fat.c" ex="false" tool="0" flavor2="2">
+        <cTool>
+          <incDir>
+            <pElem>.</pElem>
+          </incDir>
+          <preprocessorList>
+            <Elem>F_CPU=16000000UL</Elem>
+          </preprocessorList>
+        </cTool>
+      </item>
+      <item path="mmc/fat.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="mmc/fat_config.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="mmc/main.c" ex="false" tool="0" flavor2="2">
+        <cTool>
+          <preprocessorList>
+            <Elem>__AVR_ATmega32__</Elem>
+          </preprocessorList>
+        </cTool>
+      </item>
+      <item path="mmc/partition.c" ex="false" tool="0" flavor2="2">
+        <cTool>
+          <incDir>
+            <pElem>.</pElem>
+          </incDir>
+          <preprocessorList>
+            <Elem>F_CPU=16000000UL</Elem>
+          </preprocessorList>
+        </cTool>
+      </item>
+      <item path="mmc/partition.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="mmc/partition_config.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="mmc/sd-reader_config.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="mmc/sd_raw.c" ex="false" tool="0" flavor2="2">
+        <cTool>
+          <incDir>
+            <pElem>.</pElem>
+          </incDir>
+          <preprocessorList>
+            <Elem>F_CPU=16000000UL</Elem>
+          </preprocessorList>
+        </cTool>
+      </item>
+      <item path="mmc/sd_raw.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="mmc/sd_raw_config.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="mmc/uart.c" ex="false" tool="0" flavor2="2">
+        <cTool>
+          <incDir>
+            <pElem>.</pElem>
+          </incDir>
+          <preprocessorList>
+            <Elem>F_CPU=16000000UL</Elem>
+          </preprocessorList>
+        </cTool>
+      </item>
+      <item path="mmc/uart.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="modplay/arch.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="modplay/effects_mod.c" ex="false" tool="0" flavor2="2">
+        <cTool>
+          <preprocessorList>
+            <Elem>__AVR_ATmega32__</Elem>
+          </preprocessorList>
+        </cTool>
+      </item>
+      <item path="modplay/effects_mod.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="modplay/loader_mod.c" ex="false" tool="0" flavor2="2">
+        <cTool>
+          <incDir>
+            <pElem>.</pElem>
+          </incDir>
+          <preprocessorList>
+            <Elem>F_CPU=16000000UL</Elem>
+          </preprocessorList>
+        </cTool>
+      </item>
+      <item path="modplay/loader_mod.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="modplay/module.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="modplay/player.c" ex="false" tool="0" flavor2="2">
+        <cTool>
+          <preprocessorList>
+            <Elem>__AVR_ATmega32__</Elem>
+          </preprocessorList>
+        </cTool>
+      </item>
+      <item path="modplay/player.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="modplay/protracker.c" ex="false" tool="0" flavor2="2">
+        <cTool>
+          <incDir>
+            <pElem>.</pElem>
+          </incDir>
+          <preprocessorList>
+            <Elem>F_CPU=16000000UL</Elem>
+          </preprocessorList>
+        </cTool>
+      </item>
+      <item path="modplay/protracker.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="pff/diskio.c" ex="false" tool="0" flavor2="2">
+        <cTool>
+        </cTool>
+      </item>
+      <item path="pff/diskio.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="pff/integer.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="pff/pff.c" ex="false" tool="0" flavor2="2">
+        <cTool>
+        </cTool>
+      </item>
+      <item path="pff/pff.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="sram.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="sram.sx" ex="false" tool="0" flavor2="2">
+        <cTool>
+          <preprocessorList>
+            <Elem>F_CPU=16000000UL</Elem>
+          </preprocessorList>
+        </cTool>
+      </item>
+      <item path="sram_defs.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="test.c" ex="false" tool="0" flavor2="2">
+        <cTool>
+          <preprocessorList>
+            <Elem>F_CPU=16000000UL</Elem>
+          </preprocessorList>
+        </cTool>
+      </item>
+      <item path="uart.c" ex="false" tool="0" flavor2="2">
+        <cTool>
+          <preprocessorList>
+            <Elem>__AVR_ATmega32__</Elem>
+          </preprocessorList>
+        </cTool>
+      </item>
+      <item path="uart.h" ex="false" tool="3" flavor2="0">
+      </item>
+    </conf>
+  </confs>
+</configurationDescriptor>

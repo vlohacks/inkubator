@@ -1,0 +1,23 @@
+#include <avr/io.h>
+
+.section .text
+
+//============================
+
+
+.global asm_test
+asm_test:
+	movw	r26, r24
+	ld	r18, X+
+	out	_SFR_IO_ADDR(PORTC), r18
+	ld	r18, X+
+	out	_SFR_IO_ADDR(PORTC), r18
+	ld	r18, X+
+	out	_SFR_IO_ADDR(PORTC), r18
+	ret	
+
+
+__vector_default:
+	reti
+
+	.end
