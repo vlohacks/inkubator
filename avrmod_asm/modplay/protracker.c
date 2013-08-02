@@ -15,7 +15,7 @@ int8_t protracker_lookup_period_index(const uint16_t period)
 {
     int i;
     for (i = 0; i < protracker_num_periods; i++) {
-        if (pgm_read_byte_near(protracker_periods_finetune + i) == period)
+        if (pgm_read_word_near(protracker_periods_finetune + i) == period)
             return i;
     }
     return -1;

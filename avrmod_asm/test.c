@@ -7,19 +7,28 @@
 #include "mmc/uart.h"
 
 #include "modplay/module.h"
+#include "modplay/player.h"
 #include "modplay/loader_mod.h"
 
-#define TESTVECT_LEN 52
 #define SRAM_SIZE 524288ul
 
-const char testvect[] = "Der Sunny ist ein Drecksack, weil er immer raus will";
 
 volatile char sample_count;
 volatile unsigned int s_ctr;
 volatile uint32_t r_ctr;
 volatile char flag;
 
+volatile char s[16];
+volatile char sip;
+volatile char sop;
+volatile char ss;
+
+//#define TESTVECT_LEN 104
+//const char testvect[] = "Und nun die Haende zum Himmel komm lasst uns froehlich sein 10 nackte frisoesen wir ham doch keine zeit ";
+
 module_t module;
+player_t * player;
+
 /*
 inline void c_latch(char * addr) {
     DDRA = 0xff;
@@ -53,6 +62,15 @@ char c_sram_read_char(char * addr) {
     return c;
 }
 */
+
+
+int freeRam () {
+  extern int __heap_start, *__brkval; 
+  int v; 
+  return (int) &v - (__brkval == 0 ? (int) &__heap_start : (int) __brkval); 
+}
+
+
 void pwm_init(void) {
     /* use OC1A pin as output */
     DDRD = _BV(PD5);
@@ -86,7 +104,7 @@ void pwm_init(void) {
 int main(void) {
 
     uint32_t addr = 0x0;
-    int i;
+    int i, j, k;
     char c;
 
     DDRA = 0xff;
@@ -95,91 +113,109 @@ int main(void) {
 
 
     i = 0;
-    int err = 0;
 
     s_ctr = 0;
     r_ctr = 0;
 
+    sip = 0;
+    sop = 0;
+    ss = 0;
+    
     uart_init();
 
     _delay_ms(1000);
 
-    //uart_puts("latch\r\n");
-
-    //addr = 0b0101010111001100;
-    //sram_latch(&addr);
-
-    //for (;;);
-
-    uart_puts("==write==\r\n");
-    for (addr = 0; addr < 512; addr++) {
-        uart_putc(testvect[i]);
-        sram_write_char(&addr, testvect[i++]);
-        if (i >= TESTVECT_LEN)
-            i = 0;
-        //_delay_ms(20);
-
+    /*
+    for (r_ctr = 0; r_ctr < SRAM_SIZE; r_ctr++) {
+        sram_write_char(&r_ctr, testvect[r_ctr % TESTVECT_LEN]);
     }
-
-    uart_puts("==read==\r\n");
-    for (addr = 0; addr < 512; addr++) {
-        c = sram_read_char(&addr);
-        uart_putc(c);
-        //_delay_ms(20);
-    }
-
-    //pwm_init();	
     
-    uart_puts("loading mod ...");
+    for (r_ctr = 0; r_ctr < SRAM_SIZE; r_ctr++) {
+        c = sram_read_char(&r_ctr);
+        if (c != testvect[r_ctr % TESTVECT_LEN]) {
+            uart_puts("erreur: ");
+            uart_putdw_hex(r_ctr);
+            uart_putc('\n');
+        }
+            
+    }
+    */
+    uart_puts_p(PSTR("loading mod ..."));
     
     loader_mod_loadfile(&module, "aurora.mod");
     
-    uart_puts(" done\r\n");
+    uart_puts_p(PSTR(" done\r\n"));
+
+    uart_puts_p(PSTR("MEM before alloc: "));
+    i = freeRam();
+    uart_putw_dec(i);
     
-    pwm_init();
+    i = sizeof(player_t);
+    uart_puts_p(PSTR(", Player size: "));
+    uart_putw_dec(i);
+   
+
+    player = (player_t *)malloc(sizeof(player_t));
+
+    uart_puts_p(PSTR(", MEM after alloc: "));
+    i = freeRam();
+    uart_putw_dec(i);
+       
     
-    for (;;);
+
     
-    for (;;) {
-
-        uart_puts("memtest: fill\r\n");
-
-        i = 0;
-        for (addr = 0; addr < SRAM_SIZE; addr++) {
-            sram_write_char(&addr, testvect[addr % TESTVECT_LEN]);
-        }
-
-        err = 0;
-        uart_puts("memtest: verify\r\n");
-
-        for (addr = 0; addr < SRAM_SIZE; addr++) {
-            c = sram_read_char(&addr);
-            if (c != testvect[addr % TESTVECT_LEN]) {
-                uart_puts("oh no, error @ ");
-                uart_putw_hex(addr);
-                uart_puts("\r\n");
-                err++;
+    for (i=0; i<31; i++) {
+        uart_putdw_hex(module.sample_headers[i].sram_offset);
+        uart_putc(' ');
+        uart_putdw_hex(module.sample_headers[i].length);
+        uart_putc('\n');
+    }
+    /*
+    for (i=0; i<module.num_patterns; i++) {
+        for (j = 0; j < 64; j++) {
+            for (k=0; k<4; k++) {
+                c = sram_read_char(&addr);
+                addr++;
+                uart_putc_hex(c);
+                c = sram_read_char(&addr);
+                addr++;
+                uart_putc_hex(c);
+                c = sram_read_char(&addr);
+                addr++;
+                uart_putc_hex(c);
+                c = sram_read_char(&addr);
+                addr++;
+                uart_putc_hex(c);
+                uart_putc(' ');
             }
+            uart_putc('\n');
         }
+        uart_putc('\n');
+    }
+    
+    //pwm_init();
+    */
+    
+    
+    i = 0;
+    for (;;) {
+        uint32_t addr;        
 
-        uart_puts("done, errors: ");
-        uart_putw_dec(err);
-        uart_puts("\r\n");
+        if (ss < 16) {
 
-        /*
+            addr = module.sample_headers[i].sram_offset + r_ctr;
 
-        sram_read_char(&addr);
-        addr++;
-        r_ctr++;
-        if (flag) {
-                flag = 0;
-                uart_puts ("read perf: ");
-                uart_putdw_dec(r_ctr);
-                uart_puts("\r\n");
+            s[sip++] = sram_read_char(&addr);
+            sip &= 0x0f;
+            ss++;
+            
+            r_ctr++;
+            if (r_ctr >= module.sample_headers[i].length)
                 r_ctr = 0;
-        }
-         */
 
+        }
+        
+        
     }
 
 
@@ -188,10 +224,15 @@ int main(void) {
 ISR(TIMER0_OVF_vect) {
 
     sample_count--;
+    uint32_t addr;
+    
     if (sample_count == 0) {
         sample_count = 4;
-        OCR1A = (unsigned char)(sram_read_char(&r_ctr) + 128);
-        r_ctr ++;
+        if (ss > 0) {
+            OCR1A = s[sop++];
+            sop &= 0x0f;
+            ss--;
+        }
         //if(sample > pcm_length)
         //	sample=0;
         //s_ctr++;

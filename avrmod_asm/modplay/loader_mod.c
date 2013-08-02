@@ -47,11 +47,11 @@ struct fat_file_struct * open_file_in_dir(struct fat_fs_struct * fs, struct fat_
 int loader_mod_loadfile(module_t * module, char * filename)
 {
     int i, r;
-    uint8_t tmp8;
+    int8_t tmp8;
     uint16_t tmp16;
     uint32_t sram_addr = 0;
     uint32_t j;
-    char tmp[32];
+    uint8_t tmp[32];
     
     char * nr = PSTR("\r\n");
     
@@ -163,7 +163,7 @@ int loader_mod_loadfile(module_t * module, char * filename)
         uart_putc(' ');    
 
         r = fat_read_file(fd, &tmp16, 2);
-        hdr->length = (uint32_t)swap_endian_u16(tmp16) << 1;
+        hdr->length = ((uint32_t)swap_endian_u16(tmp16)) << 1;
         uart_putdw_dec(hdr->length);
         uart_putc(' ');    
 
@@ -178,12 +178,12 @@ int loader_mod_loadfile(module_t * module, char * filename)
         uart_putc(' ');    
 
         r = fat_read_file(fd, &tmp16, 2);
-        hdr->loop_start = (uint32_t)swap_endian_u16(tmp16) << 1;
+        hdr->loop_start = ((uint32_t)swap_endian_u16(tmp16)) << 1;
         uart_putdw_dec(hdr->loop_start);
         uart_putc(' ');    
 
         r = fat_read_file(fd, &tmp16, 2);
-        hdr->loop_length = (uint32_t)swap_endian_u16(tmp16) << 1;
+        hdr->loop_length = ((uint32_t)swap_endian_u16(tmp16)) << 1;
         uart_putdw_dec(hdr->loop_length);
         uart_putc('\n');    
         
@@ -220,14 +220,24 @@ int loader_mod_loadfile(module_t * module, char * filename)
 
     
     // load pattern data to sram
-    for (i = 0; i < module->num_patterns * 64 * 16; i++) {
+    for (i = 0; i < module->num_patterns * 64 * 4; i++) {
         r = fat_read_file(fd, tmp, 4);
         
-        tmp8 = (tmp[0] & 0xf0) | (tmp[2] >> 4);
+        tmp8 = 0;
+        tmp16 = 0;
+        /*
+        uart_putc_hex(tmp[0]);
+        uart_putc_hex(tmp[1]);
+        uart_putc_hex(tmp[2]);
+        uart_putc_hex(tmp[3]);
+        uart_putc('\n');
+        */
+        
+        tmp8 = ((tmp[0] & 0xf0) | (tmp[2] >> 4));
         sram_write_char(&sram_addr, tmp8);
         sram_addr++;
         
-        tmp16 = (tmp[0] << 8) | (tmp[1]);
+        tmp16 = ((uint16_t)(tmp[0] & 0x0f) << 8) | (uint16_t)(tmp[1]);
         tmp8 = protracker_lookup_period_index(tmp16);
         sram_write_char(&sram_addr, tmp8);
         sram_addr++;
@@ -250,10 +260,28 @@ int loader_mod_loadfile(module_t * module, char * filename)
     for (i = 0; i < module->num_samples; i++) {
         for (j = 0; j < module->sample_headers[i].length; j++) {
             r = fat_read_file(fd, &tmp8, 1);
-            tmp8 = (int8_t)tmp8 + 128;
+            /*
+            if ((sram_addr % 16) == 0) {
+                uart_putc('\n');
+                uart_putdw_hex(sram_addr);
+                uart_puts(" : ");
+            }
+            
+            
+            uart_putc_hex(tmp8);
+            uart_putc(' ');
+              */    
+            //tmp8 = (uint8_t)(((int16_t)tmp8) + 128);
+            tmp8 += 128;
+            sram_write_char(&sram_addr, tmp8);
+            sram_addr++;
         }
     }
        
+    fat_close_file(fd);
+    fat_close_dir(dd);
+    fat_close(fs);
+    
     return 0;
 
 }

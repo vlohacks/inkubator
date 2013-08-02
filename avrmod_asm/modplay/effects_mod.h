@@ -11,11 +11,7 @@
 #include "player.h"
 #include "module.h"
 
-static const int effects_mod_map_size = 16;
-
-effect_callback_t * effects_mod_init();
-
-void effects_mod_newrowaction(player_t *, module_pattern_data_t *, int);
+void effects_mod_init(effect_callback_t * effects_map);
 
 void effects_mod_0_arpeggio(player_t *, int);
 void effects_mod_1_slideup(player_t *, int);

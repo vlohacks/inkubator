@@ -12,11 +12,10 @@
 #include "player.h"
 #include "protracker.h"
 #include "effects_mod.h"
-#include "math.h"
+#include "sram.h"
 
 player_t * player_init(const uint16_t sample_rate) 
 {
-    player_t * player = (player_t *)malloc(sizeof(player_t));
     player->sample_rate = sample_rate;
     player->channels = 0;
    
@@ -81,6 +80,7 @@ uint8_t player_read(player_t * player, int8_t * output_mix)
 {
     int k;
     
+    
     // reaching new tick
     if (player->tick_pos <= 0) {
         
@@ -130,48 +130,61 @@ uint8_t player_read(player_t * player, int8_t * output_mix)
 
             // fetch new pattern data from module
             for (k = 0; k < player->module->num_channels; k++) {
-                module_pattern_data_t * current_data = &(player->module->patterns[player->current_pattern].rows[player->current_row].data[k]);
+                uint32_t sram_addr;
+                uint8_t data[4];
+                
+                sram_addr = (player->current_pattern * 64) + (player->current_row * 16) + (k * 4);
+                
+                data[0] = sram_read_char(&sram_addr); // sample
+                sram_addr++;
+                data[1] = sram_read_char(&sram_addr); // period_index
+                sram_addr++;
+                data[2] = sram_read_char(&sram_addr); // effect
+                sram_addr++;
+                data[3] = sram_read_char(&sram_addr); // efect params
                 
                 // special behaviour for sample / note delay
-                if ((data->effect_num == 0xe) && ((data->effect_value >> 4) == 0xd)) {
-                    player->channels[k].dest_period = data->period;
-                    player->channels[k].dest_sample_num = data->sample_num;
+                if ((data[2] == 0xe) && ((data[3] >> 4) == 0xd) && (data[1] != 0xff)) {
+                    player->channels[k].dest_period = pgm_read_word_near(protracker_periods_finetune + data[1]);
+                    player->channels[k].dest_sample_num = data[0];
                     return;
                 }
 
                 // set sample
-                if (data->sample_num > 0) {
-                    player->channels[channel_num].sample_num = data->sample_num;
-                    player->channels[channel_num].volume = player->module.sample_headers[player->channels[channel_num].sample_num - 1].volume;
+                if (data[0] > 0) {
+                    player->channels[k].sample_num = data[0];
+                    player->channels[k].volume = player->module.sample_headers[player->channels[k].sample_num - 1].volume;
                 }
 
                 // set period (note)
-                if (data->period_index != 0xff) {
+                if (data[1] != 0xff) {
                     // special hack for note portamento... TODO remove here
-                    if (data->effect_num == 0x3) {
-                        player->channels[channel_num].dest_period = pgm_read_byte(data->period_index);
+                    if (data[2] == 0x3) {
+                        player->channels[k].dest_period = pgm_read_byte(protracker_periods_finetune + data[1]);
                     } else {
                         if (!(player->pattern_delay_active)) {
-                            player->channels[channel_num].period = data->period;
-                            player->channels[channel_num].period_index = data->period_index;
-                            player->channels[channel_num].sample_pos.u32 = 0;
-                            //player_channel_set_frequency(player, player->channels[channel_num].period, channel_num);
+                            //player->channels[channel_num].period = data->period;
+                            player->channels[k].period_index = data[1];
+                            player->channels[k].sample_pos.u32 = 0;
+                            player_channel_set_period(player, data[1], k);
+                            player_channel_set_frequency(player, player->channels[k].period, k);
                         }
                     }
                 }
 
-                player->channels[channel_num].vibrato_state = 0;
+                player->channels[k].vibrato_state = 0;
                 //player->channels[channel_num].tremolo_state = 0;
-                player->channels[channel_num].volume_master = 64;
+                //player->channels[channel_num].volume_master = 64;
 
-                if ((data->effect_num) != 0x3 && (data->effect_num != 0x5)) {
-                    if (data->period_index != 0xff)
-                        player_channel_set_period(player, data->period_index, channel_num);
-                        //player_channel_set_frequency(player, player->channels[channel_num].period, channel_num);
+                if ((data[2]) != 0x3 && (data[2] != 0x5)) {
+                    if (data[1] != 0xff) {
+                        player_channel_set_period(player, data[1], k);
+                        player_channel_set_frequency(player, player->channels[k].period, k);
+                    }
                 }
                 
-                player->channels[k].current_effect_num = current_data->effect_num;
-                player->channels[k].current_effect_value = current_data->effect_value;
+                player->channels[k].current_effect_num = data[2];
+                player->channels[k].current_effect_value = data[3];
             }
 
         }
@@ -217,10 +230,11 @@ uint16_t player_calc_tick_duration(const uint16_t bpm, const uint16_t sample_rat
 void player_channel_set_period(player_t * player, const uint8_t period_index, const int channel_num)
 {
     player_channel_t * channel = &(player->channels[channel_num]);
-    module_sample_t * sample = &(player->module->samples[channel->sample_num - 1]);
+    module_sample_header_t * sample_header = &(player->module.sample_headers[channel->sample_num - 1]);
 
-    uint16_t period = protracker_periods_finetune[sample->header.finetune][period_index];
-    player_channel_set_frequency(player, period, channel_num);
+    
+    player->channels[channel_num].period =  pgm_read_word_near(protracker_periods_finetune + (sample_header->finetune * protracker_num_periods) + period_index);
+    //player_channel_set_frequency(player, period, channel_num);
 }
 
 
@@ -228,9 +242,7 @@ void player_channel_set_frequency(player_t * player, const uint16_t period, cons
 {
     player_channel_t * channel = &(player->channels[channel_num]);
     
-    channel->frequency = protracker_paulafreq[player->paula_freq_index] / (period * 2.0f);
-
-    printf("channel freq %i: %i \n", channel_num, channel->frequency);
+    channel->frequency = 7093789.2 / (period * 2.0f);
 
     channel->sample_interval.u16.u = channel->frequency;
     channel->sample_interval.u32 /= (uint32_t)player->sample_rate;
@@ -239,18 +251,20 @@ void player_channel_set_frequency(player_t * player, const uint16_t period, cons
 int8_t player_channel_fetch_sample(player_t * player,  const int channel_num) 
 {
     int8_t s;
+    uint32_t sram_addr;
     
     player_channel_t * channel = &(player->channels[channel_num]);
     int sample_index = channel->sample_num - 1;
-
+    module_sample_header_t h = &(player->module->sample_headers[sample_index]);
+            
     // maintain looping
-    if (player->module->samples[sample_index].header.loop_length > 2) {
-        while (channel->sample_pos.u16.u >= (player->module->samples[sample_index].header.loop_length + player->module->samples[sample_index].header.loop_start)) {
-            channel->sample_pos.u16.u -= player->module->samples[sample_index].header.loop_length;
+    if (h->loop_length > 2) {
+        if (channel->sample_pos.u16.u >= (h->loop_length + h->loop_start)) {
+            channel->sample_pos.u16.u = h->loop_start;
         }
     } else {
-        if (channel->sample_pos.u16.u >= player->module->samples[sample_index].header.length)
-            return 0.0f;
+        if (channel->sample_pos.u16.u >= h->length)
+            return 0;
     }
 
     // no sample, no sound... 
@@ -258,10 +272,12 @@ int8_t player_channel_fetch_sample(player_t * player,  const int channel_num)
         return 0;
 
     // trying to play a empty sample slot... play silence instead of segfault :)
-    if (player->module->samples[sample_index].data == 0)
+    if (h->length == 0)
         return 0;
     
-    s = player->module->samples[sample_index].data[channel->sample_pos.u16.u];
+    sram_addr = h->sram_offset + channel->sample_pos.u16.u;
+    s = sram_read_char(&sram_addr);
+    //s = player->module->samples[sample_index].data[channel->sample_pos.u16.u];
 
     // advance sample position
     channel->sample_pos.u32 += channel->sample_interval.u32;

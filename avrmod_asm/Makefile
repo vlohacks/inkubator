@@ -4,7 +4,7 @@ HEX := $(NAME).hex
 OUT := $(NAME).out
 MAP := $(NAME).map
 
-OBJ = sram.o test.o mmc/uart.o mmc/partition.o mmc/fat.o mmc/sd_raw.o mmc/byteordering.o modplay/protracker.o modplay/loader_mod.o
+OBJ = sram.o test.o mmc/uart.o mmc/partition.o mmc/fat.o mmc/sd_raw.o mmc/byteordering.o modplay/protracker.o modplay/loader_mod.o 
 
 MCU := atmega32
 MCU_AVRDUDE := m32

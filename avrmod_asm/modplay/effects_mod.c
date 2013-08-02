@@ -13,13 +13,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-effect_callback_t * effects_mod_init()
+void effects_mod_init(effect_callback_t * effect_map)
 {
     int i;
-    effect_callback_t * effect_map = malloc(sizeof(effect_callback_t) * effects_mod_map_size);
     
     // initialize with default: unimplemented
-    for (i = 0; i < effects_mod_map_size; i++)
+    for (i = 0; i < 0xf; i++)
         effect_map[i] = effects_mod_unimplemented;
     
     effect_map[0x0] = effects_mod_0_arpeggio;
@@ -42,11 +41,6 @@ effect_callback_t * effects_mod_init()
     return effect_map;
 }
 
-void effects_mod_newrowaction(player_t * player, module_pattern_data_t * data, int channel_num)
-{
-    
-
-}
 
 void effects_mod_0_arpeggio(player_t * player, int channel_num)
 {
@@ -90,8 +84,8 @@ void effects_mod_1_slideup(player_t * player, int channel)
     if (player->current_tick == 0)
         return;
     player->channels[channel].period -= player->channels[channel].current_effect_value;
-    if (player->channels[channel].period < player->period_bottom)
-        player->channels[channel].period = player->period_bottom;
+    if (player->channels[channel].period < PROTRACKER_PERIOD_MIN)
+        player->channels[channel].period = PROTRACKER_PERIOD_MIN;
     player_channel_set_frequency(player, player->channels[channel].period, channel);
 }
 
@@ -101,8 +95,8 @@ void effects_mod_2_slidedown(player_t * player, int channel)
         return;
     
     player->channels[channel].period += (player->channels[channel].current_effect_value);
-    if (player->channels[channel].period > player->period_top)
-        player->channels[channel].period = player->period_top;
+    if (player->channels[channel].period > PROTRACKER_PERIOD_MAX)
+        player->channels[channel].period = PROTRACKER_PERIOD_MAX;
     player_channel_set_frequency(player, player->channels[channel].period, channel);    
 }
 
@@ -138,16 +132,20 @@ void effects_mod_4_vibrato(player_t * player, int channel)
     if (player->current_tick == 0)
         return;    
     
-    if ((player->channels[channel].current_effect_value >> 4) != 0x00) 
-        player->channels[channel].effect_last_value[player->channels[channel].current_effect_num] = (player->channels[channel].current_effect_value >> 4);
+    if ((player->channels[channel].current_effect_value >> 4) != 0x00) {
+        player->channels[channel].effect_last_value[player->channels[channel].current_effect_num] &= 0x0f
+        player->channels[channel].effect_last_value[player->channels[channel].current_effect_num] |= (player->channels[channel].current_effect_value & 0xf0);
+    }
 
-    if ((player->channels[channel].current_effect_value & 0xf) != 0x00) 
-        player->channels[channel].effect_last_value_y[player->channels[channel].current_effect_num] = (player->channels[channel].current_effect_value & 0xf);
+    if ((player->channels[channel].current_effect_value & 0xf) != 0x00) {
+        player->channels[channel].effect_last_value[player->channels[channel].current_effect_num] &= 0xf0
+        player->channels[channel].effect_last_value[player->channels[channel].current_effect_num] |= (player->channels[channel].current_effect_value & 0x0f);
+    }
 
     temp = player->channels[channel].vibrato_state & 0x1f;
     delta = protracker_sine_table[temp];
     
-    delta *= player->channels[channel].effect_last_value_y[player->channels[channel].current_effect_num];
+    delta *= player->channels[channel].effect_last_value[player->channels[channel].current_effect_num] & 0x0f;
     delta /= 128;
     
     if (player->channels[channel].vibrato_state >= 0)
@@ -155,7 +153,7 @@ void effects_mod_4_vibrato(player_t * player, int channel)
     else
         player_channel_set_frequency(player, player->channels[channel].period - delta, channel);
     
-    player->channels[channel].vibrato_state += player->channels[channel].effect_last_value[player->channels[channel].current_effect_num];
+    player->channels[channel].vibrato_state += (player->channels[channel].effect_last_value[player->channels[channel].current_effect_num] >> 4);
     if (player->channels[channel].vibrato_state > 31)
         player->channels[channel].vibrato_state -= 64;
 }
@@ -205,7 +203,7 @@ void effects_mod_6_vibrato_volumeslide(player_t * player, int channel)
     temp = player->channels[channel].vibrato_state & 0x1f;
     delta = protracker_sine_table[temp];
     
-    delta *= player->channels[channel].effect_last_value_y[0x4];
+    delta *= player->channels[channel].effect_last_value[0x4] & 0x0f;
     delta /= 128;
     
     if (player->channels[channel].vibrato_state >= 0)
@@ -213,7 +211,7 @@ void effects_mod_6_vibrato_volumeslide(player_t * player, int channel)
     else
         player_channel_set_frequency(player, player->channels[channel].period - delta, channel);
 
-    player->channels[channel].vibrato_state += player->channels[channel].effect_last_value[0x4];
+    player->channels[channel].vibrato_state += player->channels[channel].effect_last_value[0x4] >> 4;
     if (player->channels[channel].vibrato_state > 31)
         player->channels[channel].vibrato_state -= 64;    
     
@@ -240,43 +238,44 @@ void effects_mod_7_tremolo(player_t * player, int channel)
         return;    
     
     
-    if ((player->channels[channel].current_effect_value >> 4) != 0x00) 
-        player->channels[channel].effect_last_value[player->channels[channel].current_effect_num] = (player->channels[channel].current_effect_value >> 4);
+    if ((player->channels[channel].current_effect_value >> 4) != 0x00) {
+        player->channels[channel].effect_last_value[player->channels[channel].current_effect_num] &= 0x0f
+        player->channels[channel].effect_last_value[player->channels[channel].current_effect_num] |= (player->channels[channel].current_effect_value & 0xf0);
+    }
 
-    if ((player->channels[channel].current_effect_value & 0xf) != 0x00) 
-        player->channels[channel].effect_last_value_y[player->channels[channel].current_effect_num] = (player->channels[channel].current_effect_value & 0xf);
+    if ((player->channels[channel].current_effect_value & 0xf) != 0x00) {
+        player->channels[channel].effect_last_value[player->channels[channel].current_effect_num] &= 0xf0
+        player->channels[channel].effect_last_value[player->channels[channel].current_effect_num] |= (player->channels[channel].current_effect_value & 0x0f);
+    }
 
     temp = player->channels[channel].tremolo_state & 0x1f;
     delta = protracker_sine_table[temp];
     
-    delta *= player->channels[channel].effect_last_value_y[player->channels[channel].current_effect_num];
+    delta *= player->channels[channel].effect_last_value[player->channels[channel].current_effect_num] & 0x0f;
     delta /= 64;
     
     if (player->channels[channel].tremolo_state >= 0) {
         if (player->channels[channel].volume + delta > 64) 
             delta = 64 - player->channels[channel].volume;
         temp2 = (int)player->channels[channel].volume + delta;
-        player->channels[channel].volume_master = (uint8_t)temp2;
+        player->channels[channel].volume = (uint8_t)temp2;
     } else {
         if ((int)player->channels[channel].volume - delta < 0) 
             delta = player->channels[channel].volume;
 
         temp2 = (int)player->channels[channel].volume - delta;
-        player->channels[channel].volume_master = (uint8_t)temp2;
+        player->channels[channel].volume = (uint8_t)temp2;
     }
     
     //fprintf(stderr, "tremolo: s=%i, v=%i\n", player->channels[channel].tremolo_state, player->channels[channel].volume_master);
     
-    player->channels[channel].tremolo_state += player->channels[channel].effect_last_value[player->channels[channel].current_effect_num];
+    player->channels[channel].tremolo_state += player->channels[channel].effect_last_value[player->channels[channel].current_effect_num] >> 4;
     if (player->channels[channel].tremolo_state > 31)
         player->channels[channel].tremolo_state -= 64;
 }
 
 void effects_mod_8_panning(player_t * player, int channel)
 {
-    if (player->protracker_strict_mode) 
-        return;
-    
     player->channels[channel].panning = player->channels[channel].current_effect_value;
 }
 
@@ -366,8 +365,8 @@ void effects_mod_e1_fineslideup(player_t * player, int channel)
 {
     if (player->current_tick == 0) {
         player->channels[channel].period -= player->channels[channel].current_effect_value & 0xf;
-        if (player->channels[channel].period < player->period_bottom)
-            player->channels[channel].period = player->period_bottom;
+        if (player->channels[channel].period < PROTRACKER_PERIOD_MIN)
+            player->channels[channel].period = PROTRACKER_PERIOD_MIN;
         player_channel_set_frequency(player, player->channels[channel].period, channel);
     }
 }
@@ -376,17 +375,14 @@ void effects_mod_e2_fineslidedown(player_t * player, int channel)
 {
     if (player->current_tick == 0) {
         player->channels[channel].period += (player->channels[channel].current_effect_value & 0xf);
-        if (player->channels[channel].period > player->period_top)
-            player->channels[channel].period = player->period_top;
+        if (player->channels[channel].period > PROTRACKER_PERIOD_MAX)
+            player->channels[channel].period = PROTRACKER_PERIOD_MAX;
         player_channel_set_frequency(player, player->channels[channel].period, channel);    
     }
 }
 
 void effects_mod_e8_panning(player_t * player, int channel)
 {
-    if (player->protracker_strict_mode) 
-        return;
-    
     player->channels[channel].panning = player->channels[channel].current_effect_value + 0x10;
 }
 
@@ -432,7 +428,7 @@ void effects_mod_ed_delaysample(player_t * player, int channel)
     if (player->channels[channel].sample_delay == (player->channels[channel].current_effect_value & 0xf)) {
         if (player->channels[channel].dest_sample_num > 0) {
             player->channels[channel].sample_num = player->channels[channel].dest_sample_num;
-            player->channels[channel].volume = player->module->samples[player->channels[channel].sample_num - 1].header.volume;
+            player->channels[channel].volume = player->module->sample_headers[player->channels[channel].sample_num - 1].volume;
         }
         
         if (player->channels[channel].dest_period > 0) {
@@ -466,6 +462,6 @@ void effects_mod_f_setspeed(player_t * player, int channel)
 void effects_mod_unimplemented(player_t * player, int channel)
 {
     // only alert once per row
-    if (player->current_tick == 0)
-        fprintf(stderr, "\nUnimplemented: %01x%02x\n", player->channels[channel].current_effect_num, player->channels[channel].current_effect_value);
+ 
+ 
 }

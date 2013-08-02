@@ -45,7 +45,6 @@ typedef struct {
     uint8_t current_effect_num;
     uint8_t current_effect_value;
     uint8_t effect_last_value[16];
-    uint8_t effect_last_value_y[16];
     int8_t vibrato_state;
     int8_t tremolo_state;
     uint8_t pattern_loop_position;
@@ -59,7 +58,7 @@ typedef void (*effect_callback_t)(struct player_t *, int);
 
 struct player_t {
 
-    player_channel_t * channels;
+    player_channel_t channels[4];
     module_t * module;                                  // module to play
     
     effect_callback_t effect_map[16];                     // effects map (module format specific)

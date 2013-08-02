@@ -13,8 +13,11 @@
 #include <stdint.h>
 #include <avr/pgmspace.h>
 
+#define PROTRACKER_PERIOD_MAX 856
+#define PROTRACKER_PERIOD_MIN 113
+
 #define protracker_num_periods 36
-static const uint16_t PROGMEM protracker_periods_finetune[16*36] = 
+static const uint16_t PROGMEM protracker_periods_finetune[16 * protracker_num_periods] = 
 { 
 
         856, 808, 762, 720, 678, 640, 604, 570, 538, 508, 480, 453, 

@@ -187,8 +187,11 @@
       </item>
       <item path="modplay/player.c" ex="false" tool="0" flavor2="2">
         <cTool>
+          <incDir>
+            <pElem>.</pElem>
+          </incDir>
           <preprocessorList>
-            <Elem>__AVR_ATmega32__</Elem>
+            <Elem>F_CPU=16000000UL</Elem>
           </preprocessorList>
         </cTool>
       </item>
