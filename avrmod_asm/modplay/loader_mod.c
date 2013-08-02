@@ -17,6 +17,7 @@
 #include "loader_mod.h"
 #include "protracker.h"
 #include "arch.h"
+#include "../sram.h"
 
 
 uint8_t find_file_in_dir(struct fat_fs_struct * fs, struct fat_dir_struct* dd, const char* name, struct fat_dir_entry_struct* dir_entry)
@@ -45,10 +46,11 @@ struct fat_file_struct * open_file_in_dir(struct fat_fs_struct * fs, struct fat_
  */
 int loader_mod_loadfile(module_t * module, char * filename)
 {
-    int i, j, k, r;
+    int i, r;
     uint8_t tmp8;
     uint16_t tmp16;
     uint32_t sram_addr = 0;
+    uint32_t j;
     char tmp[32];
     
     char * nr = PSTR("\r\n");
@@ -140,20 +142,20 @@ int loader_mod_loadfile(module_t * module, char * filename)
 
     // Probe for standard MOD types
     module->num_samples = 31;
-
+    module->num_channels = 4;
 
 
     // now we know what kind of MOD it is, so we can start with REAL loading
     r = fat_read_file(fd, tmp, 20);
-    uart_puts_p(PSTR("Song: "));
     tmp[20] = 0;
+    uart_puts_p(PSTR("Song: "));
     uart_puts(tmp);
     uart_putc('\n');    
 
     // load sample header data (aka song message :-))
     for (i = 0; i < module->num_samples; i++) {
         
-        module_sample_header_t hdr = &(module->sample_headers[i]);
+        module_sample_header_t * hdr = &(module->sample_headers[i]);
         
         r = fat_read_file(fd, tmp, 22);
         tmp[22] = 0;
@@ -175,55 +177,38 @@ int loader_mod_loadfile(module_t * module, char * filename)
         uart_putc_hex(hdr->volume);
         uart_putc(' ');    
 
-        r = fread (&word, 2, 1, f);
-        if (r != 1)
-            return 1;
-        hdr->loop_start = swap_endian_u16(word) << 1;
+        r = fat_read_file(fd, &tmp16, 2);
+        hdr->loop_start = (uint32_t)swap_endian_u16(tmp16) << 1;
+        uart_putdw_dec(hdr->loop_start);
+        uart_putc(' ');    
 
-        r = fread (&word, 2, 1, f);
-        if (r != 1)
-            return 1;
-        hdr->loop_length = swap_endian_u16(word) << 1;
+        r = fat_read_file(fd, &tmp16, 2);
+        hdr->loop_length = (uint32_t)swap_endian_u16(tmp16) << 1;
+        uart_putdw_dec(hdr->loop_length);
+        uart_putc('\n');    
         
         
     }
 
     // read number of orders in mod
-    r = fread(&tmp8, 1, 1, f);
-    if (r != 1) {
-        free(module);
-        fclose(f);
-        return 0;
-    }
-
-    module->num_orders = (uint16_t)tmp8;
+    r = fat_read_file(fd, &tmp8, 1);
+    module->num_orders = tmp8;
     
     // read not used "load patterns" / "loop position" / whatever
-    r = fread(&tmp8, 1, 1, f);
-    if (r != 1) {
-        free(module);
-        fclose(f);
-        return 0;
-    }
+    r = fat_read_file(fd, &tmp8, 1);
+
 
     // read order list
-    r = fread(&(module->orders), 1, 128, f);
-    if (r != 128) {
-        free(module);
-        fclose(f);
-        return 0;
-    }
+    r = fat_read_file(fd, module->orders, 128);
     
     // read signature again, just to move the filepointer - and only if the
     // file is not a STK not having a signature
-    if (module->num_samples > 15) {
-        r = fread(&signature, 4, 1, f);
-        if (r != 1) {
-            free(module);
-            fclose(f);
-            return 0;
-        }
-    }
+
+    r = fat_read_file(fd, tmp, 4);
+    tmp[4] = 0;
+    uart_puts_p(PSTR("Sig: "));
+    uart_puts(tmp);
+    uart_putc('\n');    
     
     // determine number of patterns im MOD by fetching highest entry in orders
     module->num_patterns = 0;
@@ -233,36 +218,47 @@ int loader_mod_loadfile(module_t * module, char * filename)
     }
     module->num_patterns++;
 
-    // load pattern data - TODO: special FLT8 arrangement - currently broken
-    module->patterns = (module_pattern_t *)malloc(sizeof(module_pattern_t) * module->num_patterns);
-    for (i = 0; i < module->num_patterns; i++) {
-        module->patterns[i].num_rows = 64;        // mod alwas has 64 rows per pattern
-        module->patterns[i].rows = (module_pattern_row_t *)malloc(sizeof(module_pattern_row_t) * module->patterns[i].num_rows);
-        for (j = 0; j < module->patterns[i].num_rows; j++) {
-            module->patterns[i].rows[j].data = (module_pattern_data_t *)malloc(sizeof(module_pattern_data_t) * module->num_channels);
-            for (k = 0; k < module->num_channels; k++) {
-                if(loader_mod_read_pattern_data (&(module->patterns[i].rows[j].data[k]), f)) {
-                    if (module->patterns[i].rows[j].data[k].period_index == -1) {
-                        fprintf(stderr, "Loader: WARNING: Non-standard period in pattern: %i, channel: %i, row: %i\n", i, j, k);
-                    }                    
-                    free(module);
-                    fclose(f);
-                    return 0;
-                }
-            }
+    
+    // load pattern data to sram
+    for (i = 0; i < module->num_patterns * 64 * 16; i++) {
+        r = fat_read_file(fd, tmp, 4);
+        
+        tmp8 = (tmp[0] & 0xf0) | (tmp[2] >> 4);
+        sram_write_char(&sram_addr, tmp8);
+        sram_addr++;
+        
+        tmp16 = (tmp[0] << 8) | (tmp[1]);
+        tmp8 = protracker_lookup_period_index(tmp16);
+        sram_write_char(&sram_addr, tmp8);
+        sram_addr++;
+        
+        tmp8 = tmp[2] & 0x0f;
+        sram_write_char(&sram_addr, tmp8);
+        sram_addr++;
+        
+        sram_write_char(&sram_addr, tmp[3]);
+        sram_addr++;
+    }
+    
+    module->sample_headers[0].sram_offset = sram_addr;
+    
+    for (i = 1; i < module->num_samples; i++) {
+        module->sample_headers[i].sram_offset = module->sample_headers[i - 1].sram_offset + module->sample_headers[i - 1].length;
+    }
+    
+    // load sample pcm data
+    for (i = 0; i < module->num_samples; i++) {
+        for (j = 0; j < module->sample_headers[i].length; j++) {
+            r = fat_read_file(fd, &tmp8, 1);
+            tmp8 = (int8_t)tmp8 + 128;
         }
     }
+       
+    return 0;
 
-    // load sample pcm data
-    for (i = 0; i < module->num_samples; i++) 
-        loader_mod_read_sample_data(&(module->samples[i]), f);
-	
-    fclose(f);
-    
-    return module;
 }
 
-
+/*
 int loader_mod_read_sample_header(module_sample_header_t * hdr, FILE * f) 
 {
     uint16_t word;
@@ -339,3 +335,4 @@ void loader_mod_read_sample_data(module_sample_t * sample, FILE * f)
     for (i = 0; i < sample->header.length; i++)
         *p++ = fgetc(f);
 }
+*/
