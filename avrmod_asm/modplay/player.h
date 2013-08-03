@@ -24,15 +24,17 @@ typedef union {
 typedef union {
     struct {
         uint8_t l;        
-        int8_t u;        
+        uint8_t u;        
     } i8;
-    int16_t i16;
+    uint16_t i16;
 } nano_mix_t;
 
 typedef struct {
     uint8_t sample_num;
-    ufix1616_t sample_pos;
-    ufix1616_t sample_interval;
+    uint32_t sample_pos;
+    uint32_t sample_interval;
+    //ufix1616_t sample_pos;
+    //ufix1616_t sample_interval;
     uint8_t sample_delay;
     uint16_t period;
     uint8_t period_index;
@@ -66,7 +68,7 @@ struct player_t {
     uint8_t speed;                                      // current speed setting (ticks per row)
     uint8_t bpm;                                       // current bpm setting
 
-    uint8_t tick_pos;                                     // current position in tick (internal)
+    uint16_t tick_pos;                                     // current position in tick (internal)
     uint16_t tick_duration;                                // duration of one tick (gets calculated when set speed effect occurs)
     uint16_t sample_rate;                                  // samplerate, normally matches output device"s rate
 
@@ -87,9 +89,7 @@ typedef struct player_t player_t;
 
 /* Protoypes
  */
-player_t * player_init(const uint16_t samplerate);
-void player_free(player_t * player);
-void player_set_protracker_strict_mode(player_t * player, int enabled);
+void player_init(player_t * player, const uint16_t sample_rate);
 void player_set_module(player_t * player, module_t * module);
 uint8_t player_read(player_t * player, int8_t * output_mix);
 
@@ -98,7 +98,8 @@ void player_init_defaults(player_t * player);
 uint16_t player_calc_tick_duration(const uint16_t bpm, const uint16_t sample_rate);
 void player_channel_set_period(player_t * player, const uint8_t period_index, const int channel_num);
 void player_channel_set_frequency(player_t * player, const uint16_t period, const int channel_num);
-int8_t player_channel_fetch_sample(player_t * player,  const int channel_num) ;
+//int8_t player_channel_fetch_sample(player_t * player,  const int channel_num) ;
+uint8_t player_channel_fetch_sample(player_channel_t * channel,  module_sample_header_t * h) ;
 
 #endif	/* PLAYER_H */
 

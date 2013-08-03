@@ -9,9 +9,12 @@
 #include "modplay/module.h"
 #include "modplay/player.h"
 #include "modplay/loader_mod.h"
+#include <stdlib.h>
 
 #define SRAM_SIZE 524288ul
 
+#define SAMPLE_INTERVAL 8
+#define BENCHMARK
 
 volatile char sample_count;
 volatile unsigned int s_ctr;
@@ -97,7 +100,7 @@ void pwm_init(void) {
     TCCR0 |= (1 << CS00);
     TCNT0 = 0;
     TIMSK |= (1 << TOIE0);
-    sample_count = 4;
+    sample_count = SAMPLE_INTERVAL;
     sei(); //Enable interrupts
 }
 
@@ -142,7 +145,7 @@ int main(void) {
     */
     uart_puts_p(PSTR("loading mod ..."));
     
-    loader_mod_loadfile(&module, "aurora.mod");
+    loader_mod_loadfile(&module, "bigbang.mod");
     
     uart_puts_p(PSTR(" done\r\n"));
 
@@ -156,6 +159,9 @@ int main(void) {
    
 
     player = (player_t *)malloc(sizeof(player_t));
+    
+    player_init(player, 8000);
+    player_set_module(player, &module);
 
     uart_puts_p(PSTR(", MEM after alloc: "));
     i = freeRam();
@@ -163,13 +169,14 @@ int main(void) {
        
     
 
-    
+    /*
     for (i=0; i<31; i++) {
         uart_putdw_hex(module.sample_headers[i].sram_offset);
         uart_putc(' ');
         uart_putdw_hex(module.sample_headers[i].length);
         uart_putc('\n');
     }
+     */
     /*
     for (i=0; i<module.num_patterns; i++) {
         for (j = 0; j < 64; j++) {
@@ -197,15 +204,18 @@ int main(void) {
     */
     
     
+    pwm_init();
+    
     i = 0;
     for (;;) {
-        uint32_t addr;        
+        //uint32_t addr;        
 
         if (ss < 16) {
 
-            addr = module.sample_headers[i].sram_offset + r_ctr;
+            //addr = module.sample_headers[i].sram_offset + r_ctr;
 
-            s[sip++] = sram_read_char(&addr);
+            player_read(player, &(s[sip++]));
+            //s[sip++] = sram_read_char(&addr);
             sip &= 0x0f;
             ss++;
             
@@ -227,7 +237,7 @@ ISR(TIMER0_OVF_vect) {
     uint32_t addr;
     
     if (sample_count == 0) {
-        sample_count = 4;
+        sample_count = SAMPLE_INTERVAL;
         if (ss > 0) {
             OCR1A = s[sop++];
             sop &= 0x0f;

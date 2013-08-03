@@ -78,6 +78,16 @@
           </cTool>
         </makeTool>
       </makefileType>
+      <folder path="avrmod_asm/modplay">
+        <cTool>
+          <incDir>
+            <pElem>.</pElem>
+          </incDir>
+          <preprocessorList>
+            <Elem>F_CPU=16000000UL</Elem>
+          </preprocessorList>
+        </cTool>
+      </folder>
       <folder path="avrmod_asm/pff">
         <cTool>
           <preprocessorList>
@@ -164,21 +174,12 @@
       </item>
       <item path="modplay/effects_mod.c" ex="false" tool="0" flavor2="2">
         <cTool>
-          <preprocessorList>
-            <Elem>__AVR_ATmega32__</Elem>
-          </preprocessorList>
         </cTool>
       </item>
       <item path="modplay/effects_mod.h" ex="false" tool="3" flavor2="0">
       </item>
       <item path="modplay/loader_mod.c" ex="false" tool="0" flavor2="2">
         <cTool>
-          <incDir>
-            <pElem>.</pElem>
-          </incDir>
-          <preprocessorList>
-            <Elem>F_CPU=16000000UL</Elem>
-          </preprocessorList>
         </cTool>
       </item>
       <item path="modplay/loader_mod.h" ex="false" tool="3" flavor2="0">
@@ -187,24 +188,12 @@
       </item>
       <item path="modplay/player.c" ex="false" tool="0" flavor2="2">
         <cTool>
-          <incDir>
-            <pElem>.</pElem>
-          </incDir>
-          <preprocessorList>
-            <Elem>F_CPU=16000000UL</Elem>
-          </preprocessorList>
         </cTool>
       </item>
       <item path="modplay/player.h" ex="false" tool="3" flavor2="0">
       </item>
       <item path="modplay/protracker.c" ex="false" tool="0" flavor2="2">
         <cTool>
-          <incDir>
-            <pElem>.</pElem>
-          </incDir>
-          <preprocessorList>
-            <Elem>F_CPU=16000000UL</Elem>
-          </preprocessorList>
         </cTool>
       </item>
       <item path="modplay/protracker.h" ex="false" tool="3" flavor2="0">

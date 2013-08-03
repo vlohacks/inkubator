@@ -38,7 +38,6 @@ void effects_mod_init(effect_callback_t * effect_map)
     effect_map[0xe] = effects_mod_e_special;
     effect_map[0xf] = effects_mod_f_setspeed;
     
-    return effect_map;
 }
 
 
@@ -76,6 +75,7 @@ void effects_mod_0_arpeggio(player_t * player, int channel_num)
         temp2 -= protracker_num_periods;
     
     player_channel_set_period(player, temp2, channel_num);
+    player_channel_set_frequency(player, channel->period, channel_num);
     
 }
 
@@ -133,12 +133,12 @@ void effects_mod_4_vibrato(player_t * player, int channel)
         return;    
     
     if ((player->channels[channel].current_effect_value >> 4) != 0x00) {
-        player->channels[channel].effect_last_value[player->channels[channel].current_effect_num] &= 0x0f
+        player->channels[channel].effect_last_value[player->channels[channel].current_effect_num] &= 0x0f;
         player->channels[channel].effect_last_value[player->channels[channel].current_effect_num] |= (player->channels[channel].current_effect_value & 0xf0);
     }
 
     if ((player->channels[channel].current_effect_value & 0xf) != 0x00) {
-        player->channels[channel].effect_last_value[player->channels[channel].current_effect_num] &= 0xf0
+        player->channels[channel].effect_last_value[player->channels[channel].current_effect_num] &= 0xf0;
         player->channels[channel].effect_last_value[player->channels[channel].current_effect_num] |= (player->channels[channel].current_effect_value & 0x0f);
     }
 
@@ -239,12 +239,12 @@ void effects_mod_7_tremolo(player_t * player, int channel)
     
     
     if ((player->channels[channel].current_effect_value >> 4) != 0x00) {
-        player->channels[channel].effect_last_value[player->channels[channel].current_effect_num] &= 0x0f
+        player->channels[channel].effect_last_value[player->channels[channel].current_effect_num] &= 0x0f;
         player->channels[channel].effect_last_value[player->channels[channel].current_effect_num] |= (player->channels[channel].current_effect_value & 0xf0);
     }
 
     if ((player->channels[channel].current_effect_value & 0xf) != 0x00) {
-        player->channels[channel].effect_last_value[player->channels[channel].current_effect_num] &= 0xf0
+        player->channels[channel].effect_last_value[player->channels[channel].current_effect_num] &= 0xf0;
         player->channels[channel].effect_last_value[player->channels[channel].current_effect_num] |= (player->channels[channel].current_effect_value & 0x0f);
     }
 
@@ -282,8 +282,7 @@ void effects_mod_8_panning(player_t * player, int channel)
 void effects_mod_9_sampleoffset(player_t * player, int channel)
 {
     if (player->current_tick == 0) {
-        player->channels[channel].sample_pos.u16.u = ((((player->channels[channel].current_effect_value & 0xf0) >> 4) * 4096) + (player->channels[channel].current_effect_value & 0xf) * 256);
-        player->channels[channel].sample_pos.u16.l = 0;
+        player->channels[channel].sample_pos = (((((player->channels[channel].current_effect_value & 0xf0) >> 4) * 4096) + (player->channels[channel].current_effect_value & 0xf) * 256) << 16);
     }
 }
 
@@ -392,7 +391,7 @@ void effects_mod_e9_retriggersample(player_t * player, int channel)
         return;
     
     if ((player->current_tick % (player->channels[channel].current_effect_value & 0xf)) == 0)
-        player->channels[channel].sample_pos.u32 = 0;
+        player->channels[channel].sample_pos = 0;
 }
 
 void effects_mod_ea_finevolumeup(player_t * player, int channel)
@@ -433,7 +432,7 @@ void effects_mod_ed_delaysample(player_t * player, int channel)
         
         if (player->channels[channel].dest_period > 0) {
             player->channels[channel].period = player->channels[channel].dest_period;
-            player->channels[channel].sample_pos.u32 = 0;
+            player->channels[channel].sample_pos = 0;
             player_channel_set_frequency(player, player->channels[channel].period, channel);
         }            
     }

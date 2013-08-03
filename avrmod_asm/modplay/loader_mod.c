@@ -53,13 +53,10 @@ int loader_mod_loadfile(module_t * module, char * filename)
     uint32_t j;
     uint8_t tmp[32];
     
-    char * nr = PSTR("\r\n");
-    
     struct partition_struct * partition;
     struct fat_fs_struct * fs;
     struct fat_dir_entry_struct directory;
     struct fat_dir_struct * dd;
-    uint32_t signature;
     struct fat_file_struct* fd;
     
     
