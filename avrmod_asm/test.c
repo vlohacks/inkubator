@@ -13,7 +13,7 @@
 
 #define SRAM_SIZE 524288ul
 
-#define SAMPLE_RATE     8000
+#define SAMPLE_RATE     16000
 #define SAMPLE_INTERVAL 64000 / SAMPLE_RATE
 
 #define BUFFER_SIZE 64
@@ -147,7 +147,7 @@ int main(void) {
     */
     uart_puts_p(PSTR("loading mod ..."));
     
-    loader_mod_loadfile(&module, "beyond_m.mod");
+    loader_mod_loadfile(&module, "class02.mod");
     
     uart_puts_p(PSTR(" done\r\n"));
 

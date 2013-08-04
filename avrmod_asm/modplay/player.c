@@ -266,7 +266,7 @@ void player_channel_set_frequency(player_t * player, const uint16_t period, cons
     channel->sample_interval = ((uint32_t)channel->frequency << 8);
     channel->sample_interval /= (uint32_t)player->sample_rate;
 }
-
+/*
 inline uint8_t player_channel_fetch_sample(player_channel_t * channel,  module_sample_header_t * h) 
 {
     uint8_t s;
@@ -301,6 +301,7 @@ inline uint8_t player_channel_fetch_sample(player_channel_t * channel,  module_s
 
     return s;
 }
+*/
 /*
 int8_t player_channel_fetch_sample(player_t * player,  const int channel_num) 
 {
