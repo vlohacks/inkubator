@@ -14,6 +14,7 @@
 
 /* Prototypes
  */
+void loader_mod_ls();
 int loader_mod_loadfile(module_t * module, char * filename);
 
 

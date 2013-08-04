@@ -194,5 +194,5 @@ uint8_t uart_getc()
     return b;
 }
 
-EMPTY_INTERRUPT(USART_RXC_vect)
+//EMPTY_INTERRUPT(USART_RXC_vect)
 

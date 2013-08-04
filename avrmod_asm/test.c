@@ -5,6 +5,7 @@
 
 #include "sram.h"
 #include "mmc/uart.h"
+#include "mmc/sd_raw.h"
 
 #include "modplay/module.h"
 #include "modplay/player.h"
@@ -16,18 +17,30 @@
 #define SAMPLE_RATE     16000
 #define SAMPLE_INTERVAL 64000 / SAMPLE_RATE
 
+
 #define BUFFER_SIZE 64
 
+#define USART_IN_BUFFER_SIZE 32
+volatile char usart_in_buffer[USART_IN_BUFFER_SIZE];
+volatile char usart_in_buffer_pos;
+volatile char usart_in_command_complete;
+
 volatile char sample_count;
-volatile unsigned int s_ctr;
-volatile uint32_t r_ctr;
+//volatile unsigned int s_ctr;
+//volatile uint32_t r_ctr;
 volatile char flag;
+volatile char playing;
 
 volatile uint8_t s[BUFFER_SIZE];
 volatile char sip;
 volatile char sop;
 volatile char ss;
 
+static const char PROGMEM str_err[] = " ERR\n";
+static const char PROGMEM str_ok[] = " OK\n";
+static const char PROGMEM str_prompt[] = "$ ";
+
+//char modfile[13];
 //#define TESTVECT_LEN 104
 //const char testvect[] = "Und nun die Haende zum Himmel komm lasst uns froehlich sein 10 nackte frisoesen wir ham doch keine zeit ";
 
@@ -106,133 +119,155 @@ void pwm_init(void) {
     sei(); //Enable interrupts
 }
 
+
+
 int main(void) {
 
-    uint32_t addr = 0x0;
-    int i, j, k;
+    int i;
     char c;
 
     DDRA = 0xff;
     DDRC = 0xff;
-    //PORTC |= SRAM_PIN_WE;
-
 
     i = 0;
-
-    s_ctr = 0;
-    r_ctr = 0;
 
     sip = 0;
     sop = 0;
     ss = 0;
+    playing = 0;
     
+    usart_in_buffer_pos = 0;
     uart_init();
 
-    _delay_ms(1000);
-
-    /*
-    for (r_ctr = 0; r_ctr < SRAM_SIZE; r_ctr++) {
-        sram_write_char(&r_ctr, testvect[r_ctr % TESTVECT_LEN]);
+    uart_puts_p(PSTR("\ninit: power on delay (500ms) ... \n"));
+    _delay_ms(500);
+    uart_puts_p(str_ok);
+    
+    uart_puts_p(PSTR("init: sdcard ... "));
+    
+    if(!sd_raw_init()) {
+#if DEBUG
+        uart_puts_p(PSTR("MMC/SD initialization failed\n"));
+#endif
+        //return 1;
+        uart_puts_p(str_err);
+        for(;;);
     }
-    
-    for (r_ctr = 0; r_ctr < SRAM_SIZE; r_ctr++) {
-        c = sram_read_char(&r_ctr);
-        if (c != testvect[r_ctr % TESTVECT_LEN]) {
-            uart_puts("erreur: ");
-            uart_putdw_hex(r_ctr);
-            uart_putc('\n');
-        }
-            
-    }
-    */
-    uart_puts_p(PSTR("loading mod ..."));
-    
-    loader_mod_loadfile(&module, "class02.mod");
-    
-    uart_puts_p(PSTR(" done\r\n"));
-
-    uart_puts_p(PSTR("MEM before alloc: "));
-    i = freeRam();
-    uart_putw_dec(i);
-    
-    i = sizeof(player_t);
-    uart_puts_p(PSTR(", Player size: "));
-    uart_putw_dec(i);
-   
-
-    player = (player_t *)malloc(sizeof(player_t));
-    
-    player_init(player, SAMPLE_RATE);
-    player_set_module(player, &module);
-
-    uart_puts_p(PSTR(", MEM after alloc: "));
-    i = freeRam();
-    uart_putw_dec(i);
-       
+    uart_puts_p(str_ok);
     
 
-    /*
-    for (i=0; i<31; i++) {
-        uart_putdw_hex(module.sample_headers[i].sram_offset);
-        uart_putc(' ');
-        uart_putdw_hex(module.sample_headers[i].length);
-        uart_putc('\n');
-    }
-     */
-    /*
-    for (i=0; i<module.num_patterns; i++) {
-        for (j = 0; j < 64; j++) {
-            for (k=0; k<4; k++) {
-                c = sram_read_char(&addr);
-                addr++;
-                uart_putc_hex(c);
-                c = sram_read_char(&addr);
-                addr++;
-                uart_putc_hex(c);
-                c = sram_read_char(&addr);
-                addr++;
-                uart_putc_hex(c);
-                c = sram_read_char(&addr);
-                addr++;
-                uart_putc_hex(c);
-                uart_putc(' ');
-            }
-            uart_putc('\n');
-        }
-        uart_putc('\n');
-    }
-    
-    //pwm_init();
-    */
-    
-    
-    
-    sip = 0;
-    while (ss < BUFFER_SIZE) {
-        player_read(player, (uint8_t *)&(s[sip++]));
-        sip &= (uint8_t)(BUFFER_SIZE - 1);
-        ss++;
-    }
-    
+
+
+    player = 0;
+    playing = 0;
+    usart_in_command_complete = 0;
+    //player_init(player, SAMPLE_RATE);
+    //player_set_module(player, &module);
+    uart_puts_p(PSTR("init: 1337LofiPWMAudio ... "));
     pwm_init();
+    uart_puts_p(str_ok);
     
-    i = 0;
+    uart_puts_p(PSTR("\nVloSoft MOD Player OS 0.1 Ready\n\n"));
+    
+    uart_puts_p (str_prompt);
+
+    
+    
     for (;;) {
         //uint32_t addr;        
 
-        if (ss < BUFFER_SIZE) {
+        if (playing) {
+            if (ss < BUFFER_SIZE) {
 
-            //addr = module.sample_headers[i].sram_offset + r_ctr;
+                //addr = module.sample_headers[i].sram_offset + r_ctr;
 
-            player_read(player, (uint8_t *)&(s[sip++]));
-            //s[sip++] = sram_read_char(&addr);
-            sip &= (uint8_t)(BUFFER_SIZE - 1);
-            ss++;
+                player_read(player, (uint8_t *)&(s[sip++]));
+                //s[sip++] = sram_read_char(&addr);
+                sip &= (uint8_t)(BUFFER_SIZE - 1);
+                ss++;
+                //PORTB &= 0xf0;
+                //PORTB |= ((1 << (ss >> 4)) - 1);
+                //r_ctr++;
+                //if (r_ctr >= module.sample_headers[i].length)
+                //    r_ctr = 0;
+
+            }
+        }
+    
+        if (usart_in_command_complete) {
+            usart_in_command_complete = 0;
+            uart_putc('\n');
+            switch (usart_in_buffer[0]) {
+                case 'p':
+                    playing = 0;
+                    if (player) {
+                        free(player);
+                        player = 0;
+                    }
+                    
+                    for (i = 2; i<USART_IN_BUFFER_SIZE; i++) {
+                        if (usart_in_buffer[i] == '\r' || usart_in_buffer[i] == '\n') {
+                            usart_in_buffer[i] = 0;
+                            break;
+                        }
+                    }
+                        
+                    
+                    loader_mod_loadfile(&module, &usart_in_buffer[2]);
+                    
+                    player = (player_t *)malloc(sizeof(player_t));
+                    player_init(player, SAMPLE_RATE);
+                    player_set_module(player, &module);
+                    
+                    // prebuffer
+                    sip = 0;
+                    sop = 0;
+                    ss = 0;
+                    while (ss < BUFFER_SIZE) {
+                        player_read(player, (uint8_t *)&(s[sip++]));
+                        sip &= (uint8_t)(BUFFER_SIZE - 1);
+                        ss++;
+                    }                    
+                    
+                    playing = 1;
+                    
+                    break;
+                    
+                case 'l':
+
+                    if (playing) {
+                        uart_puts_p(PSTR("sorry pal, not enough mem for ls while playing :-/\n"));
+                        break;
+                    }
+                        
+                    loader_mod_ls();
+
+                    break;
+                    
+                case 's':
+                    playing = 0;
+                    if (player) {
+                        free(player);
+                        player = 0;
+                    }
+                    break;
+                    
+                case 'm':
+                    i = freeRam();
+                    uart_puts_p(PSTR("Free mem: "));
+                    uart_putw_dec(i);
+                    uart_putc(' Bytes\n');
+                    break;
+                        
+                        
+                    
+                default:
+                    if (usart_in_buffer[0] != '\r' && usart_in_buffer[0] != '\n')
+                        uart_puts_p(PSTR("invalid command\n"));
+                    break;
+            }
             
-            r_ctr++;
-            if (r_ctr >= module.sample_headers[i].length)
-                r_ctr = 0;
-
+            uart_puts_p (str_prompt);
         }
         
         
@@ -243,6 +278,9 @@ int main(void) {
 
 ISR(TIMER0_OVF_vect) {
 
+    if (!playing)
+        return;
+    
     sample_count--;
     
     if (sample_count == 0) {
@@ -261,4 +299,30 @@ ISR(TIMER0_OVF_vect) {
         //}
 
     }
+}
+
+
+ISR(USART_RXC_vect) {
+	unsigned char c;
+
+	c = UDR;
+
+	if (usart_in_buffer_pos == USART_IN_BUFFER_SIZE - 2)
+		c = '\n';
+	
+        if (c == 8) {
+            usart_in_buffer[--usart_in_buffer_pos] = 0;
+            uart_putc(c);
+            return;
+        }
+            
+	usart_in_buffer[usart_in_buffer_pos++] = c;
+        uart_putc(c);
+
+	if (c == '\n' || c == '\r') {
+		usart_in_buffer[usart_in_buffer_pos] = '\0';
+		usart_in_buffer_pos = 0;
+                usart_in_command_complete = 1;
+	}
+	
 }

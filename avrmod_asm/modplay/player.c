@@ -48,9 +48,11 @@ void player_init_channels(player_t * player)
     
    
     for (i = 0; i < player->module->num_channels; i++) {
-        player->channels[i].sample_index = 0xff;
+        player->channels[i].sample_index = 0;
         player->channels[i].sample_pos = 0;
-        player->channels[i].volume = 64;
+        player->channels[i].volume = 0;
+        player->channels[i].period_index = 0;
+        player->channels[i].period = 0;
         for (j = 0; j < 16; j++)
                 player->channels[i].effect_last_value[j] = 0;
         player->channels[i].current_effect_num = 0;
@@ -158,6 +160,8 @@ uint8_t player_read(player_t * player, uint8_t * output_mix)
 
                 // set period (note)
                 if (data[1] != 0xff) {
+                    
+                    //PORTB |= (unsigned char)(1 << k);
                     // special hack for note portamento... TODO remove here
                     if (data[2] == 0x3) {
                         player->channels[k].dest_period = pgm_read_byte(protracker_periods_finetune + data[1]);
@@ -200,10 +204,14 @@ uint8_t player_read(player_t * player, uint8_t * output_mix)
         }
 
         // maintain effects
-        for (k=0; k < player->module->num_channels; k++) 
+        for (k=0; k < player->module->num_channels; k++) {
             (player->effect_map)[player->channels[k].current_effect_num](player, k);
+        }
         
         // go for next tick
+        //if(player->current_tick == 3)
+        //    PORTB &= (unsigned char)(0xf0);
+            
         player->current_tick++;
         player->tick_pos = player->tick_duration;
 

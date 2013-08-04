@@ -108,7 +108,7 @@ void effects_mod_3_slidetonote(player_t * player, int channel)
     if (player->channels[channel].dest_period == 0)
         return;
     
-    if ((player->channels[channel].current_effect_value & 0xff) != 0x00) 
+    if ((player->channels[channel].current_effect_value) != 0x00) 
         player->channels[channel].effect_last_value[player->channels[channel].current_effect_num] = player->channels[channel].current_effect_value;
     
     if (player->channels[channel].period > player->channels[channel].dest_period) {
@@ -143,7 +143,7 @@ void effects_mod_4_vibrato(player_t * player, int channel)
     }
 
     temp = player->channels[channel].vibrato_state & 0x1f;
-    delta = protracker_sine_table[temp];
+    delta = pgm_read_byte_near(protracker_sine_table + temp);
     
     delta *= player->channels[channel].effect_last_value[player->channels[channel].current_effect_num] & 0x0f;
     delta /= 128;
@@ -200,10 +200,10 @@ void effects_mod_6_vibrato_volumeslide(player_t * player, int channel)
         return;    
     
     // maintain vibrato using last vibrato effect params
-    temp = player->channels[channel].vibrato_state & 0x1f;
-    delta = protracker_sine_table[temp];
+    temp = player->channels[channel].vibrato_state & (uint8_t)0x1f;
+    delta = pgm_read_byte_near(protracker_sine_table + temp);
     
-    delta *= player->channels[channel].effect_last_value[0x4] & 0x0f;
+    delta *= player->channels[channel].effect_last_value[0x4] & (uint8_t)0x0f;
     delta /= 128;
     
     if (player->channels[channel].vibrato_state >= 0)
@@ -248,8 +248,8 @@ void effects_mod_7_tremolo(player_t * player, int channel)
         player->channels[channel].effect_last_value[player->channels[channel].current_effect_num] |= (player->channels[channel].current_effect_value & 0x0f);
     }
 
-    temp = player->channels[channel].tremolo_state & 0x1f;
-    delta = protracker_sine_table[temp];
+    temp = player->channels[channel].tremolo_state & (uint8_t)0x1f;
+    delta = pgm_read_byte_near(protracker_sine_table + temp);
     
     delta *= player->channels[channel].effect_last_value[player->channels[channel].current_effect_num] & 0x0f;
     delta /= 64;

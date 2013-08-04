@@ -19,7 +19,7 @@
 #include "arch.h"
 #include "../sram.h"
 
-
+#define DEBUG 1
 uint8_t find_file_in_dir(struct fat_fs_struct * fs, struct fat_dir_struct* dd, const char* name, struct fat_dir_entry_struct* dir_entry)
 {
     while(fat_read_dir(dd, dir_entry)) {
@@ -42,6 +42,95 @@ struct fat_file_struct * open_file_in_dir(struct fat_fs_struct * fs, struct fat_
 }
 
 
+
+
+void loader_mod_ls() 
+{
+    struct partition_struct * partition;
+    struct fat_fs_struct * fs;
+    struct fat_dir_entry_struct directory;
+    struct fat_dir_struct * dd;
+    
+    
+partition = partition_open(
+        sd_raw_read,
+        sd_raw_read_interval,
+#if SD_RAW_WRITE_SUPPORT
+        sd_raw_write,
+        sd_raw_write_interval,
+#else
+        0,
+        0,
+#endif
+        0
+    );
+    
+    if(!partition) {
+         /* If the partition did not open, assume the storage device
+          * is a "superfloppy", i.e. has no MBR.
+          */
+         partition = partition_open(
+             sd_raw_read,
+             sd_raw_read_interval,
+#if SD_RAW_WRITE_SUPPORT
+             sd_raw_write,
+             sd_raw_write_interval,
+#else
+             0,
+             0,
+#endif
+             -1
+         );
+         if(!partition) {
+#if DEBUG
+             uart_puts_p(PSTR("opening partition failed\n"));
+#endif
+             goto bailout;
+         }
+    }
+    
+    /* open file system */
+    fs = fat_open(partition);    
+    if(!fs) {
+#if DEBUG
+        uart_puts_p(PSTR("opening filesystem failed\n"));
+#endif
+        goto bailout;
+    }    
+    
+
+    /* open root directory */
+    fat_get_dir_entry_of_path(fs, "/", &directory);
+
+    dd = fat_open_dir(fs, &directory);
+    if(!dd) {
+#if DEBUG
+        uart_puts_p(PSTR("opening root directory failed\n"));
+#endif
+        goto bailout;
+    }
+    
+    
+    struct fat_dir_entry_struct dir_entry;
+    while(fat_read_dir(dd, &dir_entry))
+    {
+        uint8_t spaces = sizeof(dir_entry.long_name) - strlen(dir_entry.long_name) + 4;
+
+        uart_puts(dir_entry.long_name);
+        uart_putc(dir_entry.attributes & FAT_ATTRIB_DIR ? '/' : ' ');
+        while(spaces--)
+            uart_putc(' ');
+        uart_putdw_dec(dir_entry.file_size);
+        uart_putc('\n');
+    }    
+    
+bailout:    
+    fat_close_dir(dd);
+    fat_close(fs);
+    partition_close(partition);    
+    
+}
+
 /* Loads a protracker/startrekker/soundtracker module file (*.mod, *.stk)
  */
 int loader_mod_loadfile(module_t * module, char * filename)
@@ -61,12 +150,14 @@ int loader_mod_loadfile(module_t * module, char * filename)
     
     
     /* setup sd card slot */
+    /*
     if(!sd_raw_init()) {
 #if DEBUG
         uart_puts_p(PSTR("MMC/SD initialization failed\n"));
 #endif
-        return 1;
+        //return 1;
     }
+    */
     
     partition = partition_open(
         sd_raw_read,
@@ -101,7 +192,7 @@ int loader_mod_loadfile(module_t * module, char * filename)
 #if DEBUG
              uart_puts_p(PSTR("opening partition failed\n"));
 #endif
-             return 1;
+             goto bailout;
          }
     }
     
@@ -111,7 +202,7 @@ int loader_mod_loadfile(module_t * module, char * filename)
 #if DEBUG
         uart_puts_p(PSTR("opening filesystem failed\n"));
 #endif
-        return 1;
+        goto bailout;
     }    
     
 
@@ -123,7 +214,7 @@ int loader_mod_loadfile(module_t * module, char * filename)
 #if DEBUG
         uart_puts_p(PSTR("opening root directory failed\n"));
 #endif
-        return 1;
+        goto bailout;
     }    
     
     
@@ -132,7 +223,7 @@ int loader_mod_loadfile(module_t * module, char * filename)
         uart_puts_p(PSTR("error opening "));
         uart_puts(filename);
         uart_putc('\n');
-        return 1;
+        goto bailout;
     }    
     
     
@@ -283,10 +374,12 @@ int loader_mod_loadfile(module_t * module, char * filename)
             }
         }
     }
-       
+
+bailout:    
     fat_close_file(fd);
     fat_close_dir(dd);
     fat_close(fs);
+    partition_close(partition);
     
     return 0;
 
