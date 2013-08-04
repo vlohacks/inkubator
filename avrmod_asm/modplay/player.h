@@ -30,20 +30,22 @@ typedef union {
 } nano_mix_t;
 
 typedef struct {
-    uint8_t sample_num;
+    uint8_t sample_index;
     uint32_t sample_pos;
     uint32_t sample_interval;
+    uint8_t volume;    
+    uint8_t panning;
+    
     //ufix1616_t sample_pos;
     //ufix1616_t sample_interval;
     uint8_t sample_delay;
     uint16_t period;
     uint8_t period_index;
     uint16_t dest_period;
-    uint8_t dest_sample_num;
+    uint8_t dest_sample_index;
     uint8_t dest_volume;
-    uint8_t panning;
+
     uint16_t frequency;
-    uint8_t volume;
     uint8_t current_effect_num;
     uint8_t current_effect_value;
     uint8_t effect_last_value[16];
@@ -91,7 +93,7 @@ typedef struct player_t player_t;
  */
 void player_init(player_t * player, const uint16_t sample_rate);
 void player_set_module(player_t * player, module_t * module);
-uint8_t player_read(player_t * player, int8_t * output_mix);
+uint8_t player_read(player_t * player, uint8_t * output_mix);
 
 void player_init_channels(player_t * player);
 void player_init_defaults(player_t * player);
@@ -100,6 +102,9 @@ void player_channel_set_period(player_t * player, const uint8_t period_index, co
 void player_channel_set_frequency(player_t * player, const uint16_t period, const int channel_num);
 //int8_t player_channel_fetch_sample(player_t * player,  const int channel_num) ;
 uint8_t player_channel_fetch_sample(player_channel_t * channel,  module_sample_header_t * h) ;
+
+
+extern uint16_t player_mix(void *, void *, uint8_t);
 
 #endif	/* PLAYER_H */
 

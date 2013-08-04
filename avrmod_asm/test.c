@@ -13,15 +13,17 @@
 
 #define SRAM_SIZE 524288ul
 
-#define SAMPLE_INTERVAL 8
-#define BENCHMARK
+#define SAMPLE_RATE     8000
+#define SAMPLE_INTERVAL 64000 / SAMPLE_RATE
+
+#define BUFFER_SIZE 64
 
 volatile char sample_count;
 volatile unsigned int s_ctr;
 volatile uint32_t r_ctr;
 volatile char flag;
 
-volatile char s[16];
+volatile uint8_t s[BUFFER_SIZE];
 volatile char sip;
 volatile char sop;
 volatile char ss;
@@ -145,7 +147,7 @@ int main(void) {
     */
     uart_puts_p(PSTR("loading mod ..."));
     
-    loader_mod_loadfile(&module, "bigbang.mod");
+    loader_mod_loadfile(&module, "beyond_m.mod");
     
     uart_puts_p(PSTR(" done\r\n"));
 
@@ -160,7 +162,7 @@ int main(void) {
 
     player = (player_t *)malloc(sizeof(player_t));
     
-    player_init(player, 8000);
+    player_init(player, SAMPLE_RATE);
     player_set_module(player, &module);
 
     uart_puts_p(PSTR(", MEM after alloc: "));
@@ -204,19 +206,27 @@ int main(void) {
     */
     
     
+    
+    sip = 0;
+    while (ss < BUFFER_SIZE) {
+        player_read(player, (uint8_t *)&(s[sip++]));
+        sip &= (uint8_t)(BUFFER_SIZE - 1);
+        ss++;
+    }
+    
     pwm_init();
     
     i = 0;
     for (;;) {
         //uint32_t addr;        
 
-        if (ss < 16) {
+        if (ss < BUFFER_SIZE) {
 
             //addr = module.sample_headers[i].sram_offset + r_ctr;
 
-            player_read(player, &(s[sip++]));
+            player_read(player, (uint8_t *)&(s[sip++]));
             //s[sip++] = sram_read_char(&addr);
-            sip &= 0x0f;
+            sip &= (uint8_t)(BUFFER_SIZE - 1);
             ss++;
             
             r_ctr++;
@@ -234,13 +244,12 @@ int main(void) {
 ISR(TIMER0_OVF_vect) {
 
     sample_count--;
-    uint32_t addr;
     
     if (sample_count == 0) {
         sample_count = SAMPLE_INTERVAL;
         if (ss > 0) {
             OCR1A = s[sop++];
-            sop &= 0x0f;
+            sop &= (uint8_t)(BUFFER_SIZE - 1);
             ss--;
         }
         //if(sample > pcm_length)

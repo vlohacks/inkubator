@@ -71,8 +71,8 @@ sram_read_char:
 	cbi	_SFR_IO_ADDR(SRAM_PORT_CTL), SRAM_PIN_LATCH2
 
 	// set bus direction to input
-	eor	r18, r18
-	out	_SFR_IO_ADDR(SRAM_PORT_IO_DDR), r18
+        // r1 is always kept zero by C compiler
+	out	_SFR_IO_ADDR(SRAM_PORT_IO_DDR), r1
 
 	// read byte from sram
 	cbi	_SFR_IO_ADDR(SRAM_PORT_CTL), SRAM_PIN_OE

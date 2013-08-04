@@ -13,10 +13,10 @@
 #include <stdint.h>
 
 typedef struct {
-    uint32_t sram_offset;
-    uint32_t length;
     uint32_t loop_start;
     uint32_t loop_length;
+    uint32_t length;
+    uint32_t sram_offset;    
     int8_t finetune;
     uint8_t volume;
 } module_sample_header_t;

@@ -13,6 +13,7 @@
 #include "protracker.h"
 #include "effects_mod.h"
 #include "../sram.h"
+#include "../mmc/uart.h"
 
 void player_init(player_t * player, const uint16_t sample_rate) 
 {
@@ -47,7 +48,7 @@ void player_init_channels(player_t * player)
     
    
     for (i = 0; i < player->module->num_channels; i++) {
-        player->channels[i].sample_num = 0;
+        player->channels[i].sample_index = 0xff;
         player->channels[i].sample_pos = 0;
         player->channels[i].volume = 64;
         for (j = 0; j < 16; j++)
@@ -74,9 +75,9 @@ void player_init_channels(player_t * player)
 
 /* render next samples to mix, update the player state
  */
-uint8_t player_read(player_t * player, int8_t * output_mix)
+uint8_t player_read(player_t * player, uint8_t * output_mix)
 {
-    int k;
+    uint8_t k;
     
     
     // reaching new tick
@@ -145,14 +146,14 @@ uint8_t player_read(player_t * player, int8_t * output_mix)
                 // special behaviour for sample / note delay
                 if ((data[2] == 0xe) && ((data[3] >> 4) == 0xd) && (data[1] != 0xff)) {
                     player->channels[k].dest_period = pgm_read_word_near(protracker_periods_finetune + data[1]);
-                    player->channels[k].dest_sample_num = data[0];
+                    player->channels[k].dest_sample_index = data[0];
                     continue;
                 }
 
                 // set sample
-                if (data[0] > 0) {
-                    player->channels[k].sample_num = data[0];
-                    player->channels[k].volume = player->module->sample_headers[player->channels[k].sample_num - 1].volume;
+                if (data[0] != 0xff) {
+                    player->channels[k].sample_index = data[0];
+                    player->channels[k].volume = player->module->sample_headers[player->channels[k].sample_index].volume;
                 }
 
                 // set period (note)
@@ -167,6 +168,14 @@ uint8_t player_read(player_t * player, int8_t * output_mix)
                             player->channels[k].sample_pos = 0;
                             player_channel_set_period(player, data[1], k);
                             player_channel_set_frequency(player, player->channels[k].period, k);
+                            /*
+                            uart_putc('p');
+                            uart_putw_dec(player->channels[k].period);
+                            uart_putc(' ');
+                            uart_putc('f');
+                            uart_putw_dec(player->channels[k].frequency);
+                            uart_putc('\n');                            
+                             */
                         }
                     }
                 }
@@ -184,6 +193,8 @@ uint8_t player_read(player_t * player, int8_t * output_mix)
                 
                 player->channels[k].current_effect_num = data[2];
                 player->channels[k].current_effect_value = data[3];
+                
+
             }
 
         }
@@ -205,9 +216,13 @@ uint8_t player_read(player_t * player, int8_t * output_mix)
     uint16_t mix;
     
     //mix.i16 = 0;
+    
+    mix = player_mix(player->channels, player->module->sample_headers, 4);
+    /*
     mix = 0;
     for (k = 0; k < player->module->num_channels; k++) 
-        mix += (uint16_t)(player_channel_fetch_sample( &(player->channels[k]), &(player->module->sample_headers[player->channels[k].sample_num - 1])) * (uint16_t)player->channels[k].volume);
+        mix += (uint16_t)(player_channel_fetch_sample( &(player->channels[k]), &(player->module->sample_headers[player->channels[k].sample_index])) * (uint16_t)player->channels[k].volume);
+    */
     
     *output_mix = (uint8_t)(mix >> 8);
     
@@ -231,7 +246,7 @@ uint16_t player_calc_tick_duration(const uint16_t bpm, const uint16_t sample_rat
 void player_channel_set_period(player_t * player, const uint8_t period_index, const int channel_num)
 {
     player_channel_t * channel = &(player->channels[channel_num]);
-    module_sample_header_t * sample_header = &(player->module->sample_headers[channel->sample_num - 1]);
+    module_sample_header_t * sample_header = &(player->module->sample_headers[channel->sample_index]);
 
     
     player->channels[channel_num].period =  pgm_read_word_near(protracker_periods_finetune + (sample_header->finetune * protracker_num_periods) + period_index);
@@ -248,17 +263,17 @@ void player_channel_set_frequency(player_t * player, const uint16_t period, cons
 
     //channel->sample_interval.u16.u = channel->frequency;
     //channel->sample_interval.u32 /= (uint32_t)player->sample_rate;
-    channel->sample_interval = ((uint32_t)channel->frequency << 16);
+    channel->sample_interval = ((uint32_t)channel->frequency << 8);
     channel->sample_interval /= (uint32_t)player->sample_rate;
 }
 
-uint8_t player_channel_fetch_sample(player_channel_t * channel,  module_sample_header_t * h) 
+inline uint8_t player_channel_fetch_sample(player_channel_t * channel,  module_sample_header_t * h) 
 {
     uint8_t s;
     uint32_t sram_addr;
     
     // no sample, no sound... 
-    if (channel->sample_num == 0)
+    if (channel->sample_index == 0xff)
         return 0;
 
     // trying to play a empty sample slot... play silence instead of segfault :)
@@ -267,17 +282,17 @@ uint8_t player_channel_fetch_sample(player_channel_t * channel,  module_sample_h
 
     // maintain looping
     if (h->loop_length > 2) {
-        if ((channel->sample_pos >> 16) >= (h->loop_length + h->loop_start)) {
-            channel->sample_pos = (h->loop_start << 16);
+        if ((channel->sample_pos >> 8) >= h->loop_length) {
+            channel->sample_pos = (h->loop_start << 8);
         }
     } else {
-        if ((channel->sample_pos >> 16) >= h->length)
+        if ((channel->sample_pos >> 8) >= h->length)
             return 0;
     }
 
     
 
-    sram_addr = h->sram_offset + (uint32_t)(channel->sample_pos >> 16);
+    sram_addr = h->sram_offset + (uint32_t)(channel->sample_pos >> 8);
     s = sram_read_char(&sram_addr);
     //s = player->module->samples[sample_index].data[channel->sample_pos.u16.u];
 

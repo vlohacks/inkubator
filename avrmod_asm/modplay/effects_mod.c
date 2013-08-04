@@ -282,7 +282,7 @@ void effects_mod_8_panning(player_t * player, int channel)
 void effects_mod_9_sampleoffset(player_t * player, int channel)
 {
     if (player->current_tick == 0) {
-        player->channels[channel].sample_pos = (((((player->channels[channel].current_effect_value & 0xf0) >> 4) * 4096) + (player->channels[channel].current_effect_value & 0xf) * 256) << 16);
+        player->channels[channel].sample_pos = ((uint32_t)((((player->channels[channel].current_effect_value & 0xf0) >> 4) * 4096) + (player->channels[channel].current_effect_value & 0xf) * 256) << 8);
     }
 }
 
@@ -425,9 +425,9 @@ void effects_mod_ed_delaysample(player_t * player, int channel)
         player->channels[channel].sample_delay = 0;
     
     if (player->channels[channel].sample_delay == (player->channels[channel].current_effect_value & 0xf)) {
-        if (player->channels[channel].dest_sample_num > 0) {
-            player->channels[channel].sample_num = player->channels[channel].dest_sample_num;
-            player->channels[channel].volume = player->module->sample_headers[player->channels[channel].sample_num - 1].volume;
+        if (player->channels[channel].dest_sample_index != 0xff) {
+            player->channels[channel].sample_index = player->channels[channel].dest_sample_index;
+            player->channels[channel].volume = player->module->sample_headers[player->channels[channel].sample_index].volume;
         }
         
         if (player->channels[channel].dest_period > 0) {

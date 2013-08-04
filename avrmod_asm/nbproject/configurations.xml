@@ -25,6 +25,7 @@
         <in>effects_mod.h</in>
         <in>loader_mod.c</in>
         <in>loader_mod.h</in>
+        <in>mix.sx</in>
         <in>module.h</in>
         <in>player.c</in>
         <in>player.h</in>
@@ -183,6 +184,10 @@
         </cTool>
       </item>
       <item path="modplay/loader_mod.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="modplay/mix.sx" ex="false" tool="0" flavor2="2">
+        <cTool>
+        </cTool>
       </item>
       <item path="modplay/module.h" ex="false" tool="3" flavor2="0">
       </item>
