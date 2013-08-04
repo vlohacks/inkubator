@@ -1,0 +1,166 @@
+#include <avr/io.h>
+#include "../sram_defs.h"
+
+.global player_mix
+
+// param 1 (WORD r25:r24): channels array
+// param 2 (WORD r23:r22): samples array
+// param 3 (BYTE r20): num channels
+player_mix:
+    push    r29                 // save regs needed for Y 
+    push    r28
+    push    r0                  // needed for mul
+    push    r16
+    push    r17
+
+    movw    r28, r24            // Y(r29:r28) pointing to channels 
+
+    eor     r24, r24
+    eor     r25, r25
+
+next_channel:
+    dec     r20
+    push    r20
+    movw    r30, r22            // Z(r31:r30) pointing to samples
+
+    ld      r18, Y              // load channel sample index
+    ldi     r19, 18             // sample header struct size
+    mul     r18, r19
+    add     r30, r0             // move pointer to sample
+    adc     r31, r1
+    eor     r1,  r1
+
+    ldd     r27, Y+1            // load sample pos (all 4 bytes since we use the lsB for accuracy)
+    ldd     r16, Y+2
+    ldd     r17, Y+3
+    ldd     r21, Y+4
+
+    ldd     r18, Z+4            // load loop length
+    ldd     r19, Z+5
+    ldd     r20, Z+6
+
+    ldi     r26, 2
+
+    cp      r26, r18
+    cpc     r1,  r19
+    cpc     r1,  r20
+
+    brsh    no_loop             // loop = 0
+
+    cp      r16, r18            // loop length reached?
+    cpc     r17, r19
+    cpc     r21, r20
+    
+    brlo    no_loop             // sample pos < loop length
+
+    //eor     r27, r27            // clear fractional (don't do this for exact loops)
+    ld      r16, Z              // sample_pos = loop start
+    ldd     r17, Z+1
+    ldd     r21, Z+2
+
+    
+no_loop:
+
+    ldd     r18, Z+8            // load sample length
+    ldd     r19, Z+9
+    ldd     r20, Z+10
+
+    cp      r18, r1             // check sample length.. if 0, return 0
+    cpc     r19, r1
+    cpc     r20, r1
+    breq    skip_channel
+
+    cp      r16, r18            // check if position reached the end
+    cpc     r17, r19
+    cpc     r21, r20
+    brsh    skip_channel
+
+    
+    ldd     r18, Z+12           // load sram sample offset
+    ldd     r19, Z+13
+    ldd     r20, Z+14
+
+    add     r18, r16            // add the current position to it
+    adc     r19, r17
+    adc     r20, r21
+    
+
+
+
+
+
+    // set bus direction to output
+    ldi     r26, 0xff
+    out     _SFR_IO_ADDR(SRAM_PORT_IO_DDR), r26
+
+    // turn all latches inactive
+    in      r26, _SFR_IO_ADDR(SRAM_PORT_CTL)
+    ori     r26, (_BV(SRAM_PIN_LATCH0) | _BV(SRAM_PIN_LATCH1) | _BV(SRAM_PIN_LATCH2))
+    out     _SFR_IO_ADDR(SRAM_PORT_CTL), r26
+
+    // load first byte and latch it to latch 0
+    out     _SFR_IO_ADDR(SRAM_PORT_IO), r18
+    cbi     _SFR_IO_ADDR(SRAM_PORT_CTL), SRAM_PIN_LATCH0
+
+    // load second byte und latch it to latch 1
+    out     _SFR_IO_ADDR(SRAM_PORT_IO), r19
+    cbi     _SFR_IO_ADDR(SRAM_PORT_CTL), SRAM_PIN_LATCH1
+
+    // load 3rd (last) byte and latch it to latch 2
+    out     _SFR_IO_ADDR(SRAM_PORT_IO), r20
+    cbi     _SFR_IO_ADDR(SRAM_PORT_CTL), SRAM_PIN_LATCH2
+
+    // set bus direction to input
+    out     _SFR_IO_ADDR(SRAM_PORT_IO_DDR), r1
+
+    // read byte from sram
+    cbi     _SFR_IO_ADDR(SRAM_PORT_CTL), SRAM_PIN_OE
+    nop
+    nop
+    in      r18, _SFR_IO_ADDR(SRAM_PORTIN_IO)               // r18 contains our sample
+    sbi     _SFR_IO_ADDR(SRAM_PORT_CTL), SRAM_PIN_OE
+
+    
+
+    ldd     r19, Y+9                                        // get volume of channel
+
+    mul     r18, r19                                        // multiply sample w/ volume
+    
+    add     r24, r0                                         // mix to retval
+    adc     r25, r1
+
+    ldd     r18, Y+5                                        // load sample interval
+    ldd     r19, Y+6
+    ldd     r20, Y+7
+    ldd     r26, Y+8
+
+    add     r27, r18
+    adc     r16, r19                                        // add interval to current position
+    adc     r17, r20
+    adc     r21, r26
+
+    std     Y+1, r27
+    std     Y+2, r16                                        // update the channel
+    std     Y+3, r17
+    std     Y+4, r21
+
+skip_channel:
+    
+    adiw    r28, 43             // position channel pointer on next channel
+
+    pop     r20
+    cpi     r20, 0
+    breq    finito
+    rjmp    next_channel
+
+
+finito:
+    
+    eor     r1, r1              // clear r1 (the compiler assumes it to be zero)
+
+    pop     r17
+    pop     r16
+    pop     r0
+    pop     r28                 // restore regs needed for Y
+    pop     r29
+    ret
