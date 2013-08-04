@@ -47,41 +47,6 @@ static const char PROGMEM str_prompt[] = "$ ";
 module_t module;
 player_t * player;
 
-/*
-inline void c_latch(char * addr) {
-    DDRA = 0xff;
-    PORTC |= 7;
-    PORTA = *addr++;
-    PORTC &= (unsigned char) (~1);
-    PORTA = *addr++;
-    PORTC &= (unsigned char) (~2);
-    PORTA = *addr++;
-    PORTC &= (unsigned char) (~4);
-}
-
-void c_sram_write_char(char * addr, char c) {
-    c_latch(addr);
-    PORTA = c;
-    PORTC &= ~(1 << SRAM_PIN_WE);
-    asm("nop");
-    asm("nop");
-    PORTC |= (1 << SRAM_PIN_WE);
-}
-
-char c_sram_read_char(char * addr) {
-    char c;
-    c_latch(addr);
-    DDRA = 0x00;
-    PORTC &= ~(1 << SRAM_PIN_OE);
-    asm("nop");
-    asm("nop");
-    c = PINA;
-    PORTC |= (1 << SRAM_PIN_OE);
-    return c;
-}
-*/
-
-
 int freeRam () {
   extern int __heap_start, *__brkval; 
   int v; 
@@ -121,10 +86,10 @@ void pwm_init(void) {
 
 
 
-int main(void) {
+int main(void) 
+{
 
     int i;
-    char c;
 
     DDRA = 0xff;
     DDRC = 0xff;
@@ -256,7 +221,7 @@ int main(void) {
                     i = freeRam();
                     uart_puts_p(PSTR("Free mem: "));
                     uart_putw_dec(i);
-                    uart_putc(' Bytes\n');
+                    uart_puts_p(PSTR("Bytes\n"));
                     break;
                         
                         
@@ -290,39 +255,31 @@ ISR(TIMER0_OVF_vect) {
             sop &= (uint8_t)(BUFFER_SIZE - 1);
             ss--;
         }
-        //if(sample > pcm_length)
-        //	sample=0;
-        //s_ctr++;
-        //if (s_ctr == 16000) {
-        //	flag = 1;
-        //	s_ctr = 0;
-        //}
-
     }
 }
 
 
 ISR(USART_RXC_vect) {
-	unsigned char c;
+    unsigned char c;
 
-	c = UDR;
+    c = UDR;
 
-	if (usart_in_buffer_pos == USART_IN_BUFFER_SIZE - 2)
-		c = '\n';
-	
-        if (c == 8) {
-            usart_in_buffer[--usart_in_buffer_pos] = 0;
-            uart_putc(c);
-            return;
-        }
-            
-	usart_in_buffer[usart_in_buffer_pos++] = c;
+    if (usart_in_buffer_pos == USART_IN_BUFFER_SIZE - 2)
+            c = '\n';
+
+    if (c == 8) {
+        usart_in_buffer[--usart_in_buffer_pos] = 0;
         uart_putc(c);
+        return;
+    }
 
-	if (c == '\n' || c == '\r') {
-		usart_in_buffer[usart_in_buffer_pos] = '\0';
-		usart_in_buffer_pos = 0;
-                usart_in_command_complete = 1;
-	}
+    usart_in_buffer[usart_in_buffer_pos++] = c;
+    uart_putc(c);
+
+    if (c == '\n' || c == '\r') {
+            usart_in_buffer[usart_in_buffer_pos] = '\0';
+            usart_in_buffer_pos = 0;
+            usart_in_command_complete = 1;
+    }
 	
 }

@@ -112,10 +112,16 @@ void effects_mod_3_slidetonote(player_t * player, int channel)
         player->channels[channel].effect_last_value[player->channels[channel].current_effect_num] = player->channels[channel].current_effect_value;
     
     if (player->channels[channel].period > player->channels[channel].dest_period) {
+        player->channels[channel].period -= player->channels[channel].effect_last_value[player->channels[channel].current_effect_num];
+        if (player->channels[channel].period < player->channels[channel].dest_period)
+            player->channels[channel].period = player->channels[channel].dest_period;
+
+        /*
         int tmp = (int)player->channels[channel].period - (int)player->channels[channel].effect_last_value[player->channels[channel].current_effect_num];
         if (tmp < player->channels[channel].dest_period)
             tmp = player->channels[channel].dest_period;
         player->channels[channel].period = (uint16_t)tmp;
+        */
     } else if (player->channels[channel].period < player->channels[channel].dest_period) {
         player->channels[channel].period += player->channels[channel].effect_last_value[player->channels[channel].current_effect_num];
         if (player->channels[channel].period > player->channels[channel].dest_period)

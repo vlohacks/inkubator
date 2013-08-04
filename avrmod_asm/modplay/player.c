@@ -147,8 +147,9 @@ uint8_t player_read(player_t * player, uint8_t * output_mix)
                 
                 // special behaviour for sample / note delay
                 if ((data[2] == 0xe) && ((data[3] >> 4) == 0xd) && (data[1] != 0xff)) {
-                    player->channels[k].dest_period = pgm_read_word_near(protracker_periods_finetune + data[1]);
                     player->channels[k].dest_sample_index = data[0];
+                    player->channels[k].dest_period =  player_period_by_index(data[1], player->module->sample_headers[data[0]].finetune);  //pgm_read_word_near(protracker_periods_finetune + data[1]);
+                    
                     continue;
                 }
 
@@ -164,7 +165,7 @@ uint8_t player_read(player_t * player, uint8_t * output_mix)
                     //PORTB |= (unsigned char)(1 << k);
                     // special hack for note portamento... TODO remove here
                     if (data[2] == 0x3) {
-                        player->channels[k].dest_period = pgm_read_byte(protracker_periods_finetune + data[1]);
+                        player->channels[k].dest_period = player_period_by_index(data[1], player->module->sample_headers[player->channels[k].sample_index].finetune);  //pgm_read_byte(protracker_periods_finetune + data[1]);
                     } else {
                         if (!(player->pattern_delay_active)) {
                             //player->channels[channel_num].period = data->period;
@@ -251,13 +252,18 @@ uint16_t player_calc_tick_duration(const uint16_t bpm, const uint16_t sample_rat
     return (((sample_rate / (bpm / 60.0)) / 4.0) / 6.0);
 }
 
+int16_t player_period_by_index(const uint8_t period_index, const int8_t finetune)
+{
+    return pgm_read_word_near(protracker_periods_finetune + (finetune * protracker_num_periods) + period_index);    
+}
+
 void player_channel_set_period(player_t * player, const uint8_t period_index, const int channel_num)
 {
     player_channel_t * channel = &(player->channels[channel_num]);
     module_sample_header_t * sample_header = &(player->module->sample_headers[channel->sample_index]);
 
     
-    player->channels[channel_num].period =  pgm_read_word_near(protracker_periods_finetune + (sample_header->finetune * protracker_num_periods) + period_index);
+    player->channels[channel_num].period = pgm_read_word_near(protracker_periods_finetune + (sample_header->finetune * protracker_num_periods) + period_index);
     //player_channel_set_frequency(player, period, channel_num);
 }
 

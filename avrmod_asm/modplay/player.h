@@ -39,7 +39,7 @@ typedef struct {
     //ufix1616_t sample_pos;
     //ufix1616_t sample_interval;
     uint8_t sample_delay;
-    uint16_t period;
+    int16_t period;
     uint8_t period_index;
     uint16_t dest_period;
     uint8_t dest_sample_index;
@@ -98,12 +98,13 @@ uint8_t player_read(player_t * player, uint8_t * output_mix);
 void player_init_channels(player_t * player);
 void player_init_defaults(player_t * player);
 uint16_t player_calc_tick_duration(const uint16_t bpm, const uint16_t sample_rate);
+int16_t player_period_by_index(const uint8_t period_index, const int8_t finetune);
 void player_channel_set_period(player_t * player, const uint8_t period_index, const int channel_num);
 void player_channel_set_frequency(player_t * player, const uint16_t period, const int channel_num);
 //int8_t player_channel_fetch_sample(player_t * player,  const int channel_num) ;
 uint8_t player_channel_fetch_sample(player_channel_t * channel,  module_sample_header_t * h) ;
 
-
+extern const PROGMEM int16_t protracker_periods_finetune[];
 extern uint16_t player_mix(void *, void *, uint8_t);
 
 #endif	/* PLAYER_H */

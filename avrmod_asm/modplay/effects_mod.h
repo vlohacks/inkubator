@@ -42,5 +42,7 @@ void effects_mod_f_setspeed(player_t *, int);
 
 void effects_mod_unimplemented(player_t *, int);
 
+extern const PROGMEM uint8_t protracker_sine_table[];;
+
 #endif	/* EFFECTS_PROTRACKER_H */
 
