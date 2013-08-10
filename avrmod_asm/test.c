@@ -312,7 +312,7 @@ ISR(TIMER0_OVF_vect) {
         sample_count = SAMPLE_INTERVAL;
         if (ss > 0) {
 
-            spi_data = (mix[sop].output >> 4) | 4096;// >> 4;
+            spi_data = (mix[sop].output) | 4096;// >> 4;
             //spi_data |= 4096;
             
             PORTD &= ~((uint8_t)4);

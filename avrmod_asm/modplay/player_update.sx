@@ -36,26 +36,35 @@ tick_still_running:
     ldd     r31, Y+1              
                                   
 
-    ld      r20, Z                // load number of channels of the module
+    ld      r20, Z+               // load number of channels of the module
+                                  // post increment Z so we point now to the 
+                                  // sample data array, saving 2 cycles (wohoo)
 
-    adiw    r30, 1                // move Z ptr to sample data start
+    //adiw    r30, 1              // move Z ptr to sample data start 
+                                  // (removed, already done with Z+ above)
+
+
     movw    r22, r30              // store module data offset in r23:r22
     
-    push    r28                   // sava address of player stucture
+    push    r28                   // save address of player stucture
     push    r29
     
-    adiw    r28, 20               // move Y ptr to channels array
+    adiw    r28, 20               // move Y ptr to channels array in the player
+                                  // struct
 
   
 
     eor     r24, r24              // r25:r24 will contain the mix
-    eor     r25, r25
+    eor     r25, r25              // we start with silence of course
 
 //  === Mixing loop starts here ================================================    
 
 next_channel:
-    dec     r20
-    push    r20
+    dec     r20                 // r20 contains channel num, initial decrement
+                                // because ie 4 means we need to iterate 3..0
+
+    push    r20                 // rescue current channel num (we mess with r20 below)
+
     movw    r30, r22            // Z(r31:r30) pointing to samples
 
     ld      r18, Y              // load channel sample index
@@ -67,8 +76,8 @@ next_channel:
 sample_valid:    
 
     ldi     r19, 18             // sample header struct size
-    mul     r18, r19
-    add     r30, r0             // move pointer to sample
+    mul     r18, r19            // sample_index * struct size = sample header offset
+    add     r30, r0             // move pointer to sample header
     adc     r31, r1
     eor     r1,  r1
 
@@ -81,13 +90,13 @@ sample_valid:
     ldd     r19, Z+5
     ldd     r20, Z+6
 
-    ldi     r26, 2
+    ldi     r26, 2              // a loop length <= 2 means there is no loop
 
     cp      r26, r18
     cpc     r1,  r19
     cpc     r1,  r20
 
-    brsh    no_loop             // loop = 0
+    brsh    no_loop             // loop length is <= 2, so no loop handling required
 
     cp      r16, r18            // loop length reached?
     cpc     r17, r19
@@ -95,7 +104,7 @@ sample_valid:
     
     brlo    no_loop             // sample pos < loop length
 
-    //eor     r27, r27            // clear fractional (don't do this for exact loops)
+    //eor     r27, r27            // clear fractional (or better.. don't do this for exact loops, leading to ugly detunes in very small chiptune samples)
     ld      r16, Z              // sample_pos = loop start
     ldd     r17, Z+1
     ldd     r21, Z+2
@@ -113,7 +122,7 @@ no_loop:
     breq    skip_channel
 
     cp      r16, r18            // check if position reached the end
-    cpc     r17, r19
+    cpc     r17, r19            
     cpc     r21, r20
     brsh    skip_channel
 
@@ -129,27 +138,28 @@ no_loop:
 
 
 
-
+//  === Load sample from external sram =========================================    
 
     // turn all latches inactive
     in      r26, _SFR_IO_ADDR(SRAM_PORT_CTL)
     ori     r26, (_BV(SRAM_PIN_LATCH0) | _BV(SRAM_PIN_LATCH1))
     out     _SFR_IO_ADDR(SRAM_PORT_CTL), r26
 
-    // load first (MSB) byte and latch it to latch 0
+    // load first (MSB) byte to latch 0
     out     _SFR_IO_ADDR(SRAM_PORT_ADDR), r20
     cbi     _SFR_IO_ADDR(SRAM_PORT_CTL), SRAM_PIN_LATCH0
 
-    // load second byte und latch it to latch 1
+    // load second (Middle) to latch 1
     out     _SFR_IO_ADDR(SRAM_PORT_ADDR), r19
     cbi     _SFR_IO_ADDR(SRAM_PORT_CTL), SRAM_PIN_LATCH1
 
-    // load last (LSB) byte 
+    // load last (LSB) byte and put it to the address lines which are
+    // directly connected to the LSB of the SRAM IC
     out     _SFR_IO_ADDR(SRAM_PORT_ADDR), r18
 
     // read byte from sram
     cbi     _SFR_IO_ADDR(SRAM_PORT_CTL), SRAM_PIN_OE
-    nop
+    nop     // wait... an alder sram isch koi D-Zug
     nop
     in      r18, _SFR_IO_ADDR(SRAM_PORT_DATA_IN)               // r18 contains our sample
     sbi     _SFR_IO_ADDR(SRAM_PORT_CTL), SRAM_PIN_OE
@@ -181,13 +191,15 @@ no_loop:
 
 skip_channel:
     
-    adiw    r28, 43             // position channel pointer on next channel
+    adiw    r28, 43                             // position channel pointer on next channel
 
-    pop     r20
-    cpi     r20, 0
+    pop     r20                                 // restore current channel count
+                                                // we saved this at the beginning 
+                                                // of the mixing loop
+
+    cpi     r20, 0                              // all channels done?
     breq    all_channels_mixed
-    rjmp    next_channel
-
+    rjmp    next_channel                        // go for next channel
 
 all_channels_mixed:
 
@@ -207,8 +219,8 @@ all_channels_mixed:
     std     Y+5, r27
 
 
-    // Truncate mix to 12 bit resolution
-    /*
+    // Truncate mix to 12 bit resolution (ridiculous 4 bit shift)
+    // so ein barrelshifter würde schon rulen... aber .. so könnts ja jeder :-)
     andi    r24, 0xf0               // HhL0
     swap    r24                     // Hh0L
     swap    r25                     // hH0L
@@ -216,8 +228,9 @@ all_channels_mixed:
     andi    r26, 0xf0               
     or      r24, r26                // hHhL
     andi    r25, 0x0f               // 0HhL
-    */
+    
 
+//  === All done.. restore state for the asshole compiler ======================    
     eor     r1, r1              // clear r1 (the compiler assumes it to be zero)
 
     pop     r17
