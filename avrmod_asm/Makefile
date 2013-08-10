@@ -1,10 +1,10 @@
 
-NAME := test
+NAME := avrmodplay
 HEX := $(NAME).hex
-OUT := $(NAME).out
+OUT := $(NAME).elf
 MAP := $(NAME).map
 
-OBJ = sram.o test.o mmc/uart.o mmc/partition.o mmc/fat.o mmc/sd_raw.o mmc/byteordering.o modplay/protracker.o modplay/loader_mod.o modplay/player.o modplay/effects_mod.o modplay/player_update.o 
+OBJ = sram.o main.o mmc/uart.o mmc/partition.o mmc/fat.o mmc/sd_raw.o mmc/byteordering.o modplay/protracker.o modplay/loader_mod.o modplay/player.o modplay/effects_mod.o modplay/player_update.o 
 
 MCU := atmega32
 MCU_AVRDUDE := m32
