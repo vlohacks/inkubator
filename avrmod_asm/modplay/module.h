@@ -29,8 +29,8 @@ typedef struct {
 } module_pattern_data_t;
 
 typedef struct {
-    module_sample_header_t sample_headers[31];
     uint8_t num_channels;
+    module_sample_header_t sample_headers[31];
     uint8_t num_samples;
     uint8_t num_patterns;
     uint8_t num_orders;

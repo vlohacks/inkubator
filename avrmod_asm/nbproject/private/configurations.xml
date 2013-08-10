@@ -31,6 +31,7 @@
         <in>module.h</in>
         <in>player.c</in>
         <in>player.h</in>
+        <in>player_update.sx</in>
         <in>protracker.c</in>
         <in>protracker.h</in>
       </df>

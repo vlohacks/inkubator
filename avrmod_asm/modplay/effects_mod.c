@@ -115,13 +115,6 @@ void effects_mod_3_slidetonote(player_t * player, int channel)
         player->channels[channel].period -= player->channels[channel].effect_last_value[player->channels[channel].current_effect_num];
         if (player->channels[channel].period < player->channels[channel].dest_period)
             player->channels[channel].period = player->channels[channel].dest_period;
-
-        /*
-        int tmp = (int)player->channels[channel].period - (int)player->channels[channel].effect_last_value[player->channels[channel].current_effect_num];
-        if (tmp < player->channels[channel].dest_period)
-            tmp = player->channels[channel].dest_period;
-        player->channels[channel].period = (uint16_t)tmp;
-        */
     } else if (player->channels[channel].period < player->channels[channel].dest_period) {
         player->channels[channel].period += player->channels[channel].effect_last_value[player->channels[channel].current_effect_num];
         if (player->channels[channel].period > player->channels[channel].dest_period)
@@ -302,10 +295,16 @@ void effects_mod_a_volumeslide(player_t * player, int channel)
         if (player->channels[channel].volume > 64)
             player->channels[channel].volume = 64;
     } else {
+        player->channels[channel].volume -= (player->channels[channel].current_effect_value & 0x0f);
+        if (player->channels[channel].volume < 0)
+            player->channels[channel].volume = 0;
+        
+        /*
         int tmp = (int)player->channels[channel].volume - (int)(player->channels[channel].current_effect_value & 0x0f);
         if (tmp < 0)	
             tmp = 0;
         player->channels[channel].volume = (uint8_t)tmp;
+         */
     }
 }
 
@@ -321,7 +320,7 @@ void effects_mod_b_positionjump(player_t * player, int channel)
 void effects_mod_c_setvolume(player_t * player, int channel)
 {
     if (player->current_tick == 0)
-        player->channels[channel].volume = player->channels[channel].current_effect_value;
+        player->channels[channel].volume = (int8_t)player->channels[channel].current_effect_value;
 }
 
 void effects_mod_d_patternbreak(player_t * player, int channel)

@@ -13,6 +13,15 @@
 #include "module.h"
 #include "protracker.h"
 
+
+typedef struct  {
+    uint16_t ledstate;
+    uint16_t output;
+} mix_t;
+
+
+//typedef uint16_t mix_t;
+
 typedef union {
     struct {
         uint16_t l;
@@ -33,7 +42,7 @@ typedef struct {
     uint8_t sample_index;
     uint32_t sample_pos;
     uint32_t sample_interval;
-    uint8_t volume;    
+    int8_t volume;    
     uint8_t panning;
     
     //ufix1616_t sample_pos;
@@ -41,9 +50,9 @@ typedef struct {
     uint8_t sample_delay;
     int16_t period;
     uint8_t period_index;
-    uint16_t dest_period;
+    int16_t dest_period;
     uint8_t dest_sample_index;
-    uint8_t dest_volume;
+    int8_t dest_volume;
 
     uint16_t frequency;
     uint8_t current_effect_num;
@@ -62,11 +71,9 @@ typedef void (*effect_callback_t)(struct player_t *, int);
 
 struct player_t {
 
-    player_channel_t channels[4];
+    
     module_t * module;                                  // module to play
     
-    effect_callback_t effect_map[16];                     // effects map (module format specific)
-
     uint8_t speed;                                      // current speed setting (ticks per row)
     uint8_t bpm;                                       // current bpm setting
 
@@ -85,6 +92,11 @@ struct player_t {
     
     uint8_t pattern_delay;
     uint8_t pattern_delay_active;
+    
+    uint8_t ledstate;
+    
+    player_channel_t channels[4];
+    effect_callback_t effect_map[16];                     // effects map (module format specific)
 };
 
 typedef struct player_t player_t;
@@ -93,19 +105,22 @@ typedef struct player_t player_t;
  */
 void player_init(player_t * player, const uint16_t sample_rate);
 void player_set_module(player_t * player, module_t * module);
-uint8_t player_read(player_t * player, uint8_t * output_mix);
+//uint8_t player_read(player_t * player, uint8_t * output_mix, uint8_t * ledstate);
+//mix_t player_read(player_t * player);
 
 void player_init_channels(player_t * player);
 void player_init_defaults(player_t * player);
 uint16_t player_calc_tick_duration(const uint16_t bpm, const uint16_t sample_rate);
 int16_t player_period_by_index(const uint8_t period_index, const int8_t finetune);
 void player_channel_set_period(player_t * player, const uint8_t period_index, const int channel_num);
-void player_channel_set_frequency(player_t * player, const uint16_t period, const int channel_num);
+void player_channel_set_frequency(player_t * player, const int16_t period, const int channel_num);
 //int8_t player_channel_fetch_sample(player_t * player,  const int channel_num) ;
 uint8_t player_channel_fetch_sample(player_channel_t * channel,  module_sample_header_t * h) ;
 
 extern const PROGMEM int16_t protracker_periods_finetune[];
+
 extern uint16_t player_mix(void *, void *, uint8_t);
+extern mix_t player_read(player_t * player);
 
 #endif	/* PLAYER_H */
 

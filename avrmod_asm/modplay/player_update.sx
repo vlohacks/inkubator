@@ -1,22 +1,57 @@
 #include <avr/io.h>
 #include "../sram_defs.h"
 
-.global player_mix
 
-// param 1 (WORD r25:r24): channels array
-// param 2 (WORD r23:r22): samples array
-// param 3 (BYTE r20): num channels
-player_mix:
+.extern player_new_tick
+
+// param 1 (WORD r25:r24): player struct
+.global player_read
+player_read:
+
     push    r29                 // save regs needed for Y 
     push    r28
     push    r0                  // needed for mul
     push    r16
     push    r17
 
-    movw    r28, r24            // Y(r29:r28) pointing to channels 
+//  === Deal with new tick =====================================================
 
-    eor     r24, r24
+    movw    r28, r24            // Y pointing to player struct
+    ldd     r18, Y+4            // load current tick pos
+    ldd     r19, Y+5
+    
+    cp      r18, r1             // compare with 0, if 0 we need to 
+    cpc     r19, r1             // deal with a new tick
+
+    brne    tick_still_running  // not zero, continue with rendering channels
+
+    call    player_new_tick
+
+
+tick_still_running:
+
+//  === Prepare pointers for mixing ============================================
+
+    ld      r30, Y                // address of module struct.
+    ldd     r31, Y+1              
+                                  
+
+    ld      r20, Z                // load number of channels of the module
+
+    adiw    r30, 1                // move Z ptr to sample data start
+    movw    r22, r30              // store module data offset in r23:r22
+    
+    push    r28                   // sava address of player stucture
+    push    r29
+    
+    adiw    r28, 20               // move Y ptr to channels array
+
+  
+
+    eor     r24, r24              // r25:r24 will contain the mix
     eor     r25, r25
+
+//  === Mixing loop starts here ================================================    
 
 next_channel:
     dec     r20
@@ -120,6 +155,7 @@ no_loop:
     sbi     _SFR_IO_ADDR(SRAM_PORT_CTL), SRAM_PIN_OE
 
     
+    
 
     ldd     r19, Y+9                                        // get volume of channel
 
@@ -154,7 +190,34 @@ skip_channel:
 
 
 all_channels_mixed:
+
+//  === Mixing finished, update player state ===================================    
     
+    pop     r29                 // restore position of player structure to Y
+    pop     r28                 // we saved this above before preparing mixing
+
+    ldd     r26, Y+4            // load tick_pos from player struct
+    ldd     r27, Y+5
+
+    ldd     r22, Y+19           // load led state
+    
+    sbiw    r26, 1              // subtract 1 frem tick pos
+
+    std     Y+4, r26            // store tick_pos 
+    std     Y+5, r27
+
+
+    // Truncate mix to 12 bit resolution
+    /*
+    andi    r24, 0xf0               // HhL0
+    swap    r24                     // Hh0L
+    swap    r25                     // hH0L
+    mov     r26, r25                
+    andi    r26, 0xf0               
+    or      r24, r26                // hHhL
+    andi    r25, 0x0f               // 0HhL
+    */
+
     eor     r1, r1              // clear r1 (the compiler assumes it to be zero)
 
     pop     r17

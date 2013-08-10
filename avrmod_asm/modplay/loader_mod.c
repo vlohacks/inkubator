@@ -51,6 +51,7 @@ void loader_mod_ls()
     struct fat_dir_entry_struct directory;
     struct fat_dir_struct * dd;
     
+    raw_block_alloc();
     
 partition = partition_open(
         sd_raw_read,
@@ -128,6 +129,7 @@ bailout:
     fat_close_dir(dd);
     fat_close(fs);
     partition_close(partition);    
+    raw_block_free();
     
 }
 
@@ -148,6 +150,7 @@ int loader_mod_loadfile(module_t * module, char * filename)
     struct fat_dir_struct * dd;
     struct fat_file_struct* fd;
     
+    raw_block_alloc();
     
     /* setup sd card slot */
     /*
@@ -192,6 +195,7 @@ int loader_mod_loadfile(module_t * module, char * filename)
 #if DEBUG
              uart_puts_p(PSTR("opening partition failed\n"));
 #endif
+             r = -1;
              goto bailout;
          }
     }
@@ -202,6 +206,7 @@ int loader_mod_loadfile(module_t * module, char * filename)
 #if DEBUG
         uart_puts_p(PSTR("opening filesystem failed\n"));
 #endif
+        r = -1;        
         goto bailout;
     }    
     
@@ -214,6 +219,7 @@ int loader_mod_loadfile(module_t * module, char * filename)
 #if DEBUG
         uart_puts_p(PSTR("opening root directory failed\n"));
 #endif
+        r = -1;        
         goto bailout;
     }    
     
@@ -223,6 +229,7 @@ int loader_mod_loadfile(module_t * module, char * filename)
         uart_puts_p(PSTR("error opening "));
         uart_puts(filename);
         uart_putc('\n');
+        r = -1;        
         goto bailout;
     }    
     
@@ -314,33 +321,59 @@ int loader_mod_loadfile(module_t * module, char * filename)
         
         tmp8 = 0;
         tmp16 = 0;
+        
         /*
-        uart_putc_hex(tmp[0]);
-        uart_putc_hex(tmp[1]);
-        uart_putc_hex(tmp[2]);
-        uart_putc_hex(tmp[3]);
-        uart_putc('\n');
+        if (sram_addr <= 0x100) {
+            uart_putdw_hex(sram_addr);
+            uart_putc('\n');            
+            uart_putc_hex(tmp[0]);
+            uart_putc_hex(tmp[1]);
+            uart_putc_hex(tmp[2]);
+            uart_putc_hex(tmp[3]);
+            uart_putc('\n');
+        }
         */
         
-        tmp8 = ((tmp[0] & 0xf0) | (tmp[2] >> 4));
+        tmp8 = ((tmp[0] & (uint8_t)0xf0) | (uint8_t)(tmp[2] >> 4));
         if (tmp8 > 0)
             tmp8--;
         else
             tmp8 = -1;
         
+        //if (sram_addr <= 0x100)
+        //    uart_putc_hex(tmp8);
+        
         sram_write_char(&sram_addr, tmp8);
         sram_addr++;
         
-        tmp16 = ((uint16_t)(tmp[0] & 0x0f) << 8) | (uint16_t)(tmp[1]);
+        tmp16 = ((uint16_t)(tmp[0] & (uint8_t)0x0f) << 8) | (uint16_t)(tmp[1]);
         tmp8 = protracker_lookup_period_index(tmp16);
         sram_write_char(&sram_addr, tmp8);
+
+        //if (sram_addr <= 0x100)
+        //    uart_putc_hex(tmp8);
+        
         sram_addr++;
         
-        tmp8 = tmp[2] & 0x0f;
+        tmp8 = tmp[2] & (uint8_t)0x0f;
+        
+        //if (sram_addr <= 0x100)
+        //    uart_putc_hex(tmp8);
+        
+        
         sram_write_char(&sram_addr, tmp8);
         sram_addr++;
         
+        /*
+        if (sram_addr < 0x100) {
+                uart_putc_hex(tmp[3]);
+                uart_putc('\n');
+        }
+        */
+        
         sram_write_char(&sram_addr, tmp[3]);
+        
+
         sram_addr++;
     }
     
@@ -374,12 +407,16 @@ int loader_mod_loadfile(module_t * module, char * filename)
             }
         }
     }
+    
+    r = 0;
 
 bailout:    
     fat_close_file(fd);
     fat_close_dir(dd);
     fat_close(fs);
     partition_close(partition);
+    
+    raw_block_free();
     
     return 0;
 

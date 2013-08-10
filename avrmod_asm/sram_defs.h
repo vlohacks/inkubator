@@ -1,16 +1,23 @@
 #ifndef _SRAM_DEFS_H
 #define _SRAM_DEFS_H
 
-#define SRAM_PORT_IO		PORTA
-#define SRAM_PORTIN_IO		PINA
-#define SRAM_PORT_IO_DDR	DDRA
-#define SRAM_PORT_CTL		PORTC
+//#define SRAM_PORT_IO		PORTA
+#define SRAM_PORT_ADDR		PORTA
+#define SRAM_PORT_ADDR_DDR      DDRA
+#define SRAM_PORT_DATA		PORTC
+//#define SRAM_PORTIN_IO		PINA
+#define SRAM_PORT_DATA_IN	PINC
+#define SRAM_PORT_DATA_DDR	DDRC
+#define SRAM_PORT_CTL		PORTD
 
-#define SRAM_PIN_LATCH0	0
-#define SRAM_PIN_LATCH1	1
-#define SRAM_PIN_LATCH2	2
+//#define SRAM_PIN_LATCH0	0
+//#define SRAM_PIN_LATCH1	1
+//#define SRAM_PIN_LATCH2	2
 
-#define SRAM_PIN_WE	6
-#define SRAM_PIN_OE	7
+#define SRAM_PIN_LATCH0	3
+#define SRAM_PIN_LATCH1	4
+
+#define SRAM_PIN_OE	6
+#define SRAM_PIN_WE	7
 
 #endif // _SRAM_DEFS_H

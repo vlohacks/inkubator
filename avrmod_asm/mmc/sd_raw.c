@@ -10,6 +10,7 @@
 
 #include <string.h>
 #include <avr/io.h>
+#include <stdlib.h>
 #include "sd_raw.h"
 
 /**
@@ -146,7 +147,7 @@
 
 #if !SD_RAW_SAVE_RAM
 /* static data buffer for acceleration */
-static uint8_t raw_block[512];
+uint8_t * raw_block;
 /* offset where the data within raw_block lies on the card */
 static offset_t raw_block_address;
 #if SD_RAW_WRITE_BUFFERING
@@ -162,6 +163,17 @@ static uint8_t sd_raw_card_type;
 static void sd_raw_send_byte(uint8_t b);
 static uint8_t sd_raw_rec_byte();
 static uint8_t sd_raw_send_command(uint8_t command, uint32_t arg);
+
+
+void raw_block_alloc()
+{
+    raw_block = (uint8_t *)malloc(512);
+}
+
+void raw_block_free()
+{
+    free(raw_block);
+}
 
 /**
  * \ingroup sd_raw
@@ -323,8 +335,8 @@ uint8_t sd_raw_init()
 #if SD_RAW_WRITE_BUFFERING
     raw_block_written = 1;
 #endif
-    if(!sd_raw_read(0, raw_block, sizeof(raw_block)))
-        return 0;
+    //if(!sd_raw_read(0, raw_block, sizeof(raw_block)))
+        //return 0;
 #endif
 
     return 1;

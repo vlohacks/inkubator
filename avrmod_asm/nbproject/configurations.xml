@@ -29,6 +29,7 @@
         <in>module.h</in>
         <in>player.c</in>
         <in>player.h</in>
+        <in>player_update.sx</in>
         <in>protracker.c</in>
         <in>protracker.h</in>
       </df>
@@ -204,6 +205,10 @@
         </cTool>
       </item>
       <item path="modplay/player.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="modplay/player_update.sx" ex="false" tool="0" flavor2="2">
+        <cTool>
+        </cTool>
       </item>
       <item path="modplay/protracker.c" ex="false" tool="0" flavor2="2">
         <cTool>

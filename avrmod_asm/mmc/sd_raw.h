@@ -124,6 +124,9 @@ struct sd_raw_info
 typedef uint8_t (*sd_raw_read_interval_handler_t)(uint8_t* buffer, offset_t offset, void* p);
 typedef uintptr_t (*sd_raw_write_interval_handler_t)(uint8_t* buffer, offset_t offset, void* p);
 
+void raw_block_alloc();
+void raw_block_free();
+
 uint8_t sd_raw_init();
 uint8_t sd_raw_available();
 uint8_t sd_raw_locked();

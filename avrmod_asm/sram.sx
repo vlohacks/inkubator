@@ -5,81 +5,75 @@
 
 .global sram_write_char
 sram_write_char:
-	// get pointer from C call to X register
-	movw	r26, r24
+	// get pointer from C call to Z register
+	movw	r30, r24
 
 	// set bus direction to output
 	ldi	r18, 0xff;
-	out	_SFR_IO_ADDR(SRAM_PORT_IO_DDR), r18
+	out	_SFR_IO_ADDR(SRAM_PORT_DATA_DDR), r18
 
 	// turn all latches inactive
 	in	r18, _SFR_IO_ADDR(SRAM_PORT_CTL)
-	ori	r18, (_BV(SRAM_PIN_LATCH0) | _BV(SRAM_PIN_LATCH1) | _BV(SRAM_PIN_LATCH2))
+	ori	r18, (_BV(SRAM_PIN_LATCH0) | _BV(SRAM_PIN_LATCH1))
 	out	_SFR_IO_ADDR(SRAM_PORT_CTL), r18	
 
-	// load first byte and latch it to latch 0
-	ld	r18, X+
-	out	_SFR_IO_ADDR(SRAM_PORT_IO), r18
+	// load msb byte and latch it to latch 0
+	ldd	r18, Z+2
+	out	_SFR_IO_ADDR(SRAM_PORT_ADDR), r18
 	cbi	_SFR_IO_ADDR(SRAM_PORT_CTL), SRAM_PIN_LATCH0
 
 	// load second byte und latch it to latch 1
-	ld	r18, X+
-	out	_SFR_IO_ADDR(SRAM_PORT_IO), r18
+	ldd	r18, Z+1
+	out	_SFR_IO_ADDR(SRAM_PORT_ADDR), r18
 	cbi	_SFR_IO_ADDR(SRAM_PORT_CTL), SRAM_PIN_LATCH1
 
-	// load 3rd (last) byte and latch it to latch 2
-	ld	r18, X+
-	out	_SFR_IO_ADDR(SRAM_PORT_IO), r18
-	cbi	_SFR_IO_ADDR(SRAM_PORT_CTL), SRAM_PIN_LATCH2
+	// load lsb
+	ld	r18, Z
+	out	_SFR_IO_ADDR(SRAM_PORT_ADDR), r18
 
 	// write byte to sram
-	out	_SFR_IO_ADDR(SRAM_PORT_IO), r22
+	out	_SFR_IO_ADDR(SRAM_PORT_DATA), r22
 	cbi	_SFR_IO_ADDR(SRAM_PORT_CTL), SRAM_PIN_WE
 	nop
 	nop
 	sbi	_SFR_IO_ADDR(SRAM_PORT_CTL), SRAM_PIN_WE
 
+        // set direction back to input
+        out	_SFR_IO_ADDR(SRAM_PORT_DATA_DDR), r1
+        out     _SFR_IO_ADDR(SRAM_PORT_DATA), r1
 	ret	
 
 .global sram_read_char
 sram_read_char:
-	// get pointer from C call to X register
-	movw	r26, r24
-
-	// set bus direction to output
-	ldi	r18, 0xff
-	out	_SFR_IO_ADDR(SRAM_PORT_IO_DDR), r18
+	// get pointer from C call to Z register
+	movw	r30, r24
 
 	// turn all latches inactive
 	in	r18, _SFR_IO_ADDR(SRAM_PORT_CTL)
-	ori	r18, (_BV(SRAM_PIN_LATCH0) | _BV(SRAM_PIN_LATCH1) | _BV(SRAM_PIN_LATCH2))
+	ori	r18, (_BV(SRAM_PIN_LATCH0) | _BV(SRAM_PIN_LATCH1))
 	out	_SFR_IO_ADDR(SRAM_PORT_CTL), r18	
 
 	// load first byte and latch it to latch 0
-	ld	r18, X+
-	out	_SFR_IO_ADDR(SRAM_PORT_IO), r18
+	ldd	r18, Z+2
+	out	_SFR_IO_ADDR(SRAM_PORT_ADDR), r18
 	cbi	_SFR_IO_ADDR(SRAM_PORT_CTL), SRAM_PIN_LATCH0
 
 	// load second byte und latch it to latch 1
-	ld	r18, X+
-	out	_SFR_IO_ADDR(SRAM_PORT_IO), r18
+	ldd	r18, Z+1
+	out	_SFR_IO_ADDR(SRAM_PORT_ADDR), r18
 	cbi	_SFR_IO_ADDR(SRAM_PORT_CTL), SRAM_PIN_LATCH1
 
 	// load 3rd (last) byte and latch it to latch 2
-	ld	r18, X+
-	out	_SFR_IO_ADDR(SRAM_PORT_IO), r18
-	cbi	_SFR_IO_ADDR(SRAM_PORT_CTL), SRAM_PIN_LATCH2
-
-	// set bus direction to input
-        // r1 is always kept zero by C compiler
-	out	_SFR_IO_ADDR(SRAM_PORT_IO_DDR), r1
+	ld	r18, Z
+	out	_SFR_IO_ADDR(SRAM_PORT_ADDR), r18
 
 	// read byte from sram
 	cbi	_SFR_IO_ADDR(SRAM_PORT_CTL), SRAM_PIN_OE
 	nop
 	nop
-	in	r24, _SFR_IO_ADDR(SRAM_PORTIN_IO)
+	in	r24, _SFR_IO_ADDR(SRAM_PORT_DATA_IN)
 	sbi	_SFR_IO_ADDR(SRAM_PORT_CTL), SRAM_PIN_OE
+        
 
 	ret
 
