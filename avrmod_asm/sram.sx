@@ -77,3 +77,57 @@ sram_read_char:
 
 	ret
 
+
+
+.global sram_read_char_i
+sram_read_char_i:
+	// turn all latches inactive
+	in	r18, _SFR_IO_ADDR(SRAM_PORT_CTL)
+	ori	r18, (_BV(SRAM_PIN_LATCH0) | _BV(SRAM_PIN_LATCH1))
+	out	_SFR_IO_ADDR(SRAM_PORT_CTL), r18	
+
+	out	_SFR_IO_ADDR(SRAM_PORT_ADDR), r24
+	cbi	_SFR_IO_ADDR(SRAM_PORT_CTL), SRAM_PIN_LATCH0
+
+	out	_SFR_IO_ADDR(SRAM_PORT_ADDR), r23
+	cbi	_SFR_IO_ADDR(SRAM_PORT_CTL), SRAM_PIN_LATCH1
+
+	out	_SFR_IO_ADDR(SRAM_PORT_ADDR), r22
+
+	cbi	_SFR_IO_ADDR(SRAM_PORT_CTL), SRAM_PIN_OE
+	nop
+	nop
+	in	r24, _SFR_IO_ADDR(SRAM_PORT_DATA_IN)
+	sbi	_SFR_IO_ADDR(SRAM_PORT_CTL), SRAM_PIN_OE
+
+	ret
+
+.global sram_write_char_i
+sram_write_char_i:
+	// set bus direction to output
+	ldi	r18, 0xff;
+	out	_SFR_IO_ADDR(SRAM_PORT_DATA_DDR), r18
+
+	in	r18, _SFR_IO_ADDR(SRAM_PORT_CTL)
+	ori	r18, (_BV(SRAM_PIN_LATCH0) | _BV(SRAM_PIN_LATCH1))
+	out	_SFR_IO_ADDR(SRAM_PORT_CTL), r18	
+
+	out	_SFR_IO_ADDR(SRAM_PORT_ADDR), r24
+	cbi	_SFR_IO_ADDR(SRAM_PORT_CTL), SRAM_PIN_LATCH0
+
+	out	_SFR_IO_ADDR(SRAM_PORT_ADDR), r23
+	cbi	_SFR_IO_ADDR(SRAM_PORT_CTL), SRAM_PIN_LATCH1
+
+	// load lsb
+	out	_SFR_IO_ADDR(SRAM_PORT_ADDR), r22
+
+	// write byte to sram
+	out	_SFR_IO_ADDR(SRAM_PORT_DATA), r20
+	cbi	_SFR_IO_ADDR(SRAM_PORT_CTL), SRAM_PIN_WE
+	nop
+	nop
+	sbi	_SFR_IO_ADDR(SRAM_PORT_CTL), SRAM_PIN_WE
+
+        // set direction back to input
+        out	_SFR_IO_ADDR(SRAM_PORT_DATA_DDR), r1
+        out     _SFR_IO_ADDR(SRAM_PORT_DATA), r1

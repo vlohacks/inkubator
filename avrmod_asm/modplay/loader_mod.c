@@ -9,6 +9,7 @@
 #include <string.h>
 #include <avr/pgmspace.h>
 #include <avr/sleep.h>
+#include <stdlib.h>
 #include "../mmc/fat.h"
 #include "../mmc/partition.h"
 #include "../mmc/sd_raw.h"
@@ -20,7 +21,13 @@
 #include "../sram.h"
 
 #define DEBUG 1
-uint8_t find_file_in_dir(struct fat_fs_struct * fs, struct fat_dir_struct* dd, const char* name, struct fat_dir_entry_struct* dir_entry)
+
+static struct partition_struct * partition;
+static struct fat_fs_struct * fs;
+static struct fat_dir_struct * dd;
+static struct fat_dir_entry_struct * directory;
+
+uint8_t find_file_in_dir(struct fat_fs_struct * fs, struct fat_dir_struct* dd, const char* name, struct fat_dir_entry_struct * dir_entry)
 {
     while(fat_read_dir(dd, dir_entry)) {
         if(strcmp(dir_entry->long_name, name) == 0) {
@@ -42,51 +49,43 @@ struct fat_file_struct * open_file_in_dir(struct fat_fs_struct * fs, struct fat_
 }
 
 
-
-
-void loader_mod_ls() 
+void loader_mod_cleanup_sd()
 {
-    struct partition_struct * partition;
-    struct fat_fs_struct * fs;
-    struct fat_dir_entry_struct directory;
-    struct fat_dir_struct * dd;
+    if (directory)
+        free(directory);
+        
+    fat_close_dir(dd);
+    fat_close(fs);
+    partition_close(partition);
     
+    raw_block_free();    
+}
+
+uint8_t loader_mod_setup_sd() 
+{
+    uint8_t error;
     raw_block_alloc();
     
-partition = partition_open(
-        sd_raw_read,
-        sd_raw_read_interval,
-#if SD_RAW_WRITE_SUPPORT
-        sd_raw_write,
-        sd_raw_write_interval,
-#else
-        0,
-        0,
+    error = 0;
+    
+    if(!sd_raw_init()) {
+#if DEBUG
+        uart_puts_p(PSTR("MMC/SD initialization failed\n"));
 #endif
-        0
-    );
+        error = 1;
+    }
+    
+    directory = (struct fat_dir_entry_struct *) malloc(sizeof(struct fat_dir_entry_struct));
+    
+    partition = partition_open(sd_raw_read, sd_raw_read_interval, 0, 0, 0);
     
     if(!partition) {
-         /* If the partition did not open, assume the storage device
-          * is a "superfloppy", i.e. has no MBR.
-          */
-         partition = partition_open(
-             sd_raw_read,
-             sd_raw_read_interval,
-#if SD_RAW_WRITE_SUPPORT
-             sd_raw_write,
-             sd_raw_write_interval,
-#else
-             0,
-             0,
-#endif
-             -1
-         );
+         partition = partition_open(sd_raw_read, sd_raw_read_interval, 0, 0, -1);
          if(!partition) {
 #if DEBUG
              uart_puts_p(PSTR("opening partition failed\n"));
 #endif
-             goto bailout;
+             error = 1;
          }
     }
     
@@ -96,23 +95,39 @@ partition = partition_open(
 #if DEBUG
         uart_puts_p(PSTR("opening filesystem failed\n"));
 #endif
-        goto bailout;
+        error = 1;
     }    
     
 
     /* open root directory */
-    fat_get_dir_entry_of_path(fs, "/", &directory);
+    fat_get_dir_entry_of_path(fs, "/", directory);
 
-    dd = fat_open_dir(fs, &directory);
+    dd = fat_open_dir(fs, directory);
     if(!dd) {
 #if DEBUG
         uart_puts_p(PSTR("opening root directory failed\n"));
 #endif
-        goto bailout;
+        error = 1;
     }
     
+    if (error)
+        loader_mod_cleanup_sd();
     
+    return error;
+        
+}
+
+
+
+
+
+void loader_mod_ls() 
+{
     struct fat_dir_entry_struct dir_entry;
+
+    if (loader_mod_setup_sd())
+        return;
+
     while(fat_read_dir(dd, &dir_entry))
     {
         uint8_t spaces = sizeof(dir_entry.long_name) - strlen(dir_entry.long_name) + 4;
@@ -125,116 +140,115 @@ partition = partition_open(
         uart_putc('\n');
     }    
     
-bailout:    
-    fat_close_dir(dd);
-    fat_close(fs);
-    partition_close(partition);    
-    raw_block_free();
+    loader_mod_cleanup_sd();
+   
+}
+
+uint16_t loader_mod_get_song_count() 
+{
+    
+    struct fat_dir_entry_struct dir_entry;
+    
+    if (loader_mod_setup_sd())
+        return 0;
+    
+    uint16_t count = 0;
+    
+    while(fat_read_dir(dd, &dir_entry))
+    {
+        count ++;
+        if (count == 0xffff)
+            break;
+    }        
+    
+    loader_mod_cleanup_sd();
+    return count;
+}
+
+uint8_t loader_mod_load_song_by_number(module_t * module, uint16_t song_num) 
+{
+    uint16_t count = 0;
+    
+    struct fat_dir_entry_struct file_entry;
+    struct fat_file_struct * fd = 0;
+    
+    if (loader_mod_setup_sd())
+        return 1;
+    
+    
+    uart_putw_dec(song_num);
+    uart_putc('\n');
+    
+    fat_reset_dir(dd);
+    while(fat_read_dir(dd, &file_entry)) 
+    {
+        if (count == song_num) {
+            
+            fat_reset_dir(dd);
+            
+            uart_putw_dec(count);
+            uart_puts(file_entry.long_name);
+            uart_putc('\n');
+            
+            fd = fat_open_file(fs, &file_entry);
+
+            break;
+        }
+        count ++;
+    }  
+    
+    
+    if(!fd) {
+        uart_puts_p(PSTR("error opening file\n"));
+        return 1;
+    }            
+    
+    loader_mod_loadfile(module, fd);
+    
+    fat_close_file(fd);    
+    
+    loader_mod_cleanup_sd();
+    
+    return 0;
     
 }
 
-/* Loads a protracker/startrekker/soundtracker module file (*.mod, *.stk)
- */
-int loader_mod_loadfile(module_t * module, char * filename)
+uint8_t loader_mod_load_song_by_filename(module_t * module, char * filename) 
 {
-    int i, k, r;
-    int8_t tmp8;
-    uint16_t tmp16;
-    uint32_t sram_addr = 0;
-    uint32_t j;
-    uint8_t tmp[32];
+    uint8_t error = 0;
     
-    struct partition_struct * partition;
-    struct fat_fs_struct * fs;
-    struct fat_dir_entry_struct directory;
-    struct fat_dir_struct * dd;
-    struct fat_file_struct* fd;
-    
-    raw_block_alloc();
-    
-    /* setup sd card slot */
-    /*
-    if(!sd_raw_init()) {
-#if DEBUG
-        uart_puts_p(PSTR("MMC/SD initialization failed\n"));
-#endif
-        //return 1;
-    }
-    */
-    
-    partition = partition_open(
-        sd_raw_read,
-        sd_raw_read_interval,
-#if SD_RAW_WRITE_SUPPORT
-        sd_raw_write,
-        sd_raw_write_interval,
-#else
-        0,
-        0,
-#endif
-        0
-    );
-    
-    if(!partition) {
-         /* If the partition did not open, assume the storage device
-          * is a "superfloppy", i.e. has no MBR.
-          */
-         partition = partition_open(
-             sd_raw_read,
-             sd_raw_read_interval,
-#if SD_RAW_WRITE_SUPPORT
-             sd_raw_write,
-             sd_raw_write_interval,
-#else
-             0,
-             0,
-#endif
-             -1
-         );
-         if(!partition) {
-#if DEBUG
-             uart_puts_p(PSTR("opening partition failed\n"));
-#endif
-             r = -1;
-             goto bailout;
-         }
-    }
-    
-    /* open file system */
-    fs = fat_open(partition);    
-    if(!fs) {
-#if DEBUG
-        uart_puts_p(PSTR("opening filesystem failed\n"));
-#endif
-        r = -1;        
-        goto bailout;
-    }    
-    
+    if (loader_mod_setup_sd())
+        return 1;
 
-    /* open root directory */
-    fat_get_dir_entry_of_path(fs, "/", &directory);
-
-    dd = fat_open_dir(fs, &directory);
-    if(!dd) {
-#if DEBUG
-        uart_puts_p(PSTR("opening root directory failed\n"));
-#endif
-        r = -1;        
-        goto bailout;
-    }    
-    
+    struct fat_file_struct * fd;
     
     fd = open_file_in_dir(fs, dd, filename);
     if(!fd) {
         uart_puts_p(PSTR("error opening "));
         uart_puts(filename);
         uart_putc('\n');
-        r = -1;        
-        goto bailout;
-    }    
+        error = 1;
+    }
     
+    if (!error)
+        loader_mod_loadfile(module, fd);
     
+    fat_close_file(fd);
+    loader_mod_cleanup_sd();
 
+    return error;
+}
+
+/* Loads a protracker/startrekker/soundtracker module file (*.mod, *.stk)
+ */
+int loader_mod_loadfile(module_t * module, struct fat_file_struct * fd)
+{
+    int i, k, r;
+    int8_t tmp8;
+    uint16_t tmp16;
+    uint32_t sram_addr = 0;
+    uint8_t tmp[32];
+    
     // Probe for standard MOD types
     module->num_samples = 31;
     module->num_channels = 4;
@@ -245,7 +259,10 @@ int loader_mod_loadfile(module_t * module, char * filename)
     tmp[20] = 0;
     uart_puts_p(PSTR("Song: "));
     uart_puts((const char *)tmp);
-    uart_putc('\n');    
+    uart_putc('\n');
+    
+    
+    uart_puts_p(PSTR("Load sample header data...\n"));
 
     // load sample header data (aka song message :-))
     for (i = 0; i < module->num_samples; i++) {
@@ -314,8 +331,8 @@ int loader_mod_loadfile(module_t * module, char * filename)
     }
     module->num_patterns++;
 
-    
     // load pattern data to sram
+    uart_puts_p(PSTR("Load pattern data...\n"));
     for (i = 0; i < module->num_patterns * 64 * 4; i++) {
         r = fat_read_file(fd, tmp, 4);
         
@@ -343,12 +360,12 @@ int loader_mod_loadfile(module_t * module, char * filename)
         //if (sram_addr <= 0x100)
         //    uart_putc_hex(tmp8);
         
-        sram_write_char(&sram_addr, tmp8);
+        sram_write_char_i(sram_addr, tmp8);
         sram_addr++;
         
         tmp16 = ((uint16_t)(tmp[0] & (uint8_t)0x0f) << 8) | (uint16_t)(tmp[1]);
         tmp8 = protracker_lookup_period_index(tmp16);
-        sram_write_char(&sram_addr, tmp8);
+        sram_write_char_i(sram_addr, tmp8);
 
         //if (sram_addr <= 0x100)
         //    uart_putc_hex(tmp8);
@@ -361,7 +378,7 @@ int loader_mod_loadfile(module_t * module, char * filename)
         //    uart_putc_hex(tmp8);
         
         
-        sram_write_char(&sram_addr, tmp8);
+        sram_write_char_i(sram_addr, tmp8);
         sram_addr++;
         
         /*
@@ -371,7 +388,7 @@ int loader_mod_loadfile(module_t * module, char * filename)
         }
         */
         
-        sram_write_char(&sram_addr, tmp[3]);
+        sram_write_char_i(sram_addr, tmp[3]);
         
 
         sram_addr++;
@@ -382,121 +399,38 @@ int loader_mod_loadfile(module_t * module, char * filename)
     for (i = 1; i < module->num_samples; i++) {
         module->sample_headers[i].sram_offset = module->sample_headers[i - 1].sram_offset + module->sample_headers[i - 1].length;
     }
-    
+
+    uart_puts_p(PSTR("Load sample data...\n"));
     // load sample pcm data
+    /*
     for (i = 0; i < module->num_samples; i++) {
         for (j = 0; j < module->sample_headers[i].length; j++) {
             r = fat_read_file(fd, (uint8_t *)&tmp, 32);
-            /*
-            if ((sram_addr % 16) == 0) {
-                uart_putc('\n');
-                uart_putdw_hex(sram_addr);
-                uart_puts(" : ");
-            }
-            
-            
-            uart_putc_hex(tmp8);
-            uart_putc(' ');
-              */    
+
             //tmp8 = (uint8_t)(((int16_t)tmp8) + 128);
             for (k=0; k<r; k++) {
                 tmp8 = tmp[k];
                 tmp8 += 128;
-                sram_write_char(&sram_addr, tmp8);
+                sram_write_char_i(sram_addr, tmp8);
                 sram_addr++;
             }
         }
     }
+    */
     
+    while((r = fat_read_file(fd, (uint8_t *)&tmp, 32)) > 0) {
+
+        //tmp8 = (uint8_t)(((int16_t)tmp8) + 128);
+        for (k=0; k<r; k++) {
+            tmp8 = tmp[k];
+            tmp8 += 128;
+            sram_write_char_i(sram_addr, tmp8);
+            sram_addr++;
+        }    
+    }
     r = 0;
 
-bailout:    
-    fat_close_file(fd);
-    fat_close_dir(dd);
-    fat_close(fs);
-    partition_close(partition);
-    
-    raw_block_free();
-    
     return 0;
 
 }
 
-/*
-int loader_mod_read_sample_header(module_sample_header_t * hdr, FILE * f) 
-{
-    uint16_t word;
-    uint8_t byte;
-    int8_t sbyte;
-    int r;
-
-    r = fread (&(hdr->name), 1, 22, f);
-    if (r != 22)
-        return 1;
-    hdr->name[22] = 0;
-
-    r = fread (&word, 2, 1, f);
-    if (r != 1)
-        return 1;
-    hdr->length = swap_endian_u16(word) << 1;
-
-    r = fread (&sbyte, 1, 1, f);
-    if (r != 1)
-        return 1;
-    hdr->finetune = sbyte & 0xf; // > 7 ? -(16-sbyte) : sbyte;
-
-    r = fread (&byte, 1, 1, f);
-    if (r != 1)
-        return 1;
-    hdr->volume = byte;
-    
-    r = fread (&word, 2, 1, f);
-    if (r != 1)
-        return 1;
-    hdr->loop_start = swap_endian_u16(word) << 1;
-    
-    r = fread (&word, 2, 1, f);
-    if (r != 1)
-        return 1;
-    hdr->loop_length = swap_endian_u16(word) << 1;
-    
-    return 0;
-}
-
-int loader_mod_read_pattern_data(module_pattern_data_t * data, FILE * f) 
-{
-    uint32_t dw;
-    int r;
-
-    r = fread(&dw, 4, 1, f);
-    if (r != 1)
-        return 1;
-
-    dw = swap_endian_u32(dw);
-
-    // AWFUL Amiga SHIT (piss doch drauf... scheiß doch rein... zünd ihn an...)
-    data->sample_num = ((uint8_t)(dw >> 24) & 0xf0) | ((uint8_t)(dw >> 12) & 0x0f);
-    data->period = (uint16_t)((dw >> 16) & 0x0fff);
-    data->period_index = protracker_lookup_period_index(data->period);
-    data->effect_num = (uint8_t)((dw & 0x0f00) >> 8);
-    data->effect_value = (uint8_t)(dw & 0xff);
-    
-    return 0;
-}
-
-void loader_mod_read_sample_data(module_sample_t * sample, FILE * f)
-{
-    int i;
-    int8_t * p;
-
-    if (sample->header.length == 0) {
-        sample->data = NULL;
-        return;
-    }
-
-    sample->data = (int8_t *)malloc(sizeof(int8_t) * sample->header.length); //sample->header.length);
-    p = sample->data;
-    for (i = 0; i < sample->header.length; i++)
-        *p++ = fgetc(f);
-}
-*/

@@ -43,10 +43,10 @@
         <in>pff.h</in>
       </df>
       <in>debugasm.c</in>
+      <in>main.c</in>
       <in>sram.h</in>
       <in>sram.sx</in>
       <in>sram_defs.h</in>
-      <in>test.c</in>
       <in>uart.c</in>
       <in>uart.h</in>
     </df>

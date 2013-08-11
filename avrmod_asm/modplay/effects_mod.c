@@ -326,7 +326,7 @@ void effects_mod_c_setvolume(player_t * player, int channel)
 void effects_mod_d_patternbreak(player_t * player, int channel)
 {
     if (player->current_tick == 0) {
-        player->next_row = (((player->channels[channel].current_effect_value & 0xf0) >> 4) * 10 + (player->channels[channel].current_effect_value & 0x0f));
+        player->next_row = ((player->channels[channel].current_effect_value >> 4) * 10 + (player->channels[channel].current_effect_value & (uint8_t)0x0f));
         player->do_break = 1;
     }    
 }
@@ -349,21 +349,6 @@ void effects_mod_e_special(player_t * player, int channel)
     }
 }
 
-void effects_mod_e6_patternloop(player_t * player, int channel)
-{
-    if (player->current_tick == 0) {
-        if ((player->channels[channel].current_effect_value & 0x0f) == 0) {// set pos
-            player->channels[channel].pattern_loop_position = player->current_row;
-        } else {
-            if (player->channels[channel].pattern_loop_count < (player->channels[channel].current_effect_value & 0x0f)) {
-                player->next_row = player->channels[channel].pattern_loop_position;
-                player->channels[channel].pattern_loop_count++;
-            } else {
-                player->channels[channel].pattern_loop_count = 0;
-            }
-        }
-    }    
-}
 
 void effects_mod_e1_fineslideup(player_t * player, int channel)
 {
@@ -384,6 +369,23 @@ void effects_mod_e2_fineslidedown(player_t * player, int channel)
         player_channel_set_frequency(player, player->channels[channel].period, channel);    
     }
 }
+
+void effects_mod_e6_patternloop(player_t * player, int channel)
+{
+    if (player->current_tick == 0) {
+        if ((player->channels[channel].current_effect_value & (uint8_t)0x0f) == 0) {// set pos
+            player->channels[channel].pattern_loop_position = player->current_row;
+        } else {
+            if (player->channels[channel].pattern_loop_count < (player->channels[channel].current_effect_value & (uint8_t)0x0f)) {
+                player->next_row = player->channels[channel].pattern_loop_position;
+                player->channels[channel].pattern_loop_count++;
+            } else {
+                player->channels[channel].pattern_loop_count = 0;
+            }
+        }
+    }    
+}
+
 
 void effects_mod_e8_panning(player_t * player, int channel)
 {

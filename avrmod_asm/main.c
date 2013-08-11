@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <util/delay.h>
 #include <avr/interrupt.h>
+#include <avr/sleep.h>
 #include <avr/pgmspace.h>
 
 #include "sram.h"
@@ -27,21 +28,41 @@ volatile char usart_in_buffer_pos;
 volatile char usart_in_command_complete;
 
 volatile char sample_count;
-volatile unsigned int s_ctr;
-volatile uint32_t r_ctr;
+volatile unsigned int button_timer;
+volatile uint8_t should_enter_standby;
+volatile uint8_t button_released;
+
+uint16_t total_num_songs;
+uint16_t next_song_number;
+//volatile uint32_t r_ctr;
 volatile char flag;
 volatile char playing;
 
-//volatile uint8_t * ledstate;
-//volatile uint8_t * s;
 mix_t * mix;
 volatile uint8_t sip;
 volatile uint8_t sop;
 volatile uint8_t ss;
 
+
+
 static const char PROGMEM str_err[] = " ERR\n";
 static const char PROGMEM str_ok[] = " OK\n";
 static const char PROGMEM str_prompt[] = "$ ";
+
+volatile int8_t anim_index;
+volatile int8_t anim_direction;
+volatile uint8_t anim_delay;
+
+static const uint8_t PROGMEM anim_loader[] = {
+  0b1000,
+  0b1000,
+  0b1100,
+  0b1110,  
+  0b0111,      
+  0b0011,
+  0b0001,          
+  0b0001,
+};
 
 //char modfile[13];
 //#define TESTVECT_LEN 104
@@ -57,15 +78,6 @@ int freeRam () {
 }
 
 void free_plr() {
-    /*
-    if (s) {
-        free(s);
-        s = 0;
-    }
-    if (ledstate) {
-        free(ledstate);
-        ledstate = 0;
-    }*/
     if (mix) {
         free (mix);
         mix = 0;
@@ -79,31 +91,38 @@ void free_plr() {
 void alloc_plr() {
     free_plr();
     player = (player_t *)malloc(sizeof(player_t));
-    //s = (uint8_t *)malloc(BUFFER_SIZE);
-    //ledstate = (uint8_t *)malloc(BUFFER_SIZE);
     mix = (mix_t *)malloc(BUFFER_SIZE * sizeof(mix_t));
 }
 
-void pwm_init(void) {
+void peripheral_timer_init(void) 
+{
+    // cpuclock / 256 - enough for some button querying and shit
+    TCCR2 |= (1 << CS22);
+    TCNT2  = 0;
+    TIMSK |= (1 << TOIE2);
+}
+
+void output_timer_init(void) 
+{
     /* use OC1A pin as output */
-    DDRD |= _BV(PD5);
+    //DDRD |= _BV(PD5);
 
     /*
      * clear OC1A on compare match
      * set OC1A at BOTTOM, non-inverting mode
      * Fast PWM, 8bit
      */
-    TCCR1A = _BV(COM1A1) | _BV(WGM10);
+    //TCCR1A = _BV(COM1A1) | _BV(WGM10);
 
     /*
      * Fast PWM, 8bit
      * Prescaler: clk/1 = 8MHz
      * PWM frequency = 8MHz / (255 + 1) = 31.25kHz
      */
-    TCCR1B = _BV(WGM12) | _BV(CS10);
+    //TCCR1B = _BV(WGM12) | _BV(CS10);
 
     /* set initial duty cycle to zero */
-    OCR1A = 0;
+    //OCR1A = 0;
 
     /* Setup Timer0 */
 
@@ -115,6 +134,58 @@ void pwm_init(void) {
 }
 
 
+void setup_standby() {
+    set_sleep_mode(SLEEP_MODE_PWR_DOWN);    
+    MCUCSR |= (1<< JTD);
+    MCUCR &= ~12;
+}
+
+void enter_standby() {
+    _delay_ms(50);    
+    GICR |= (1 << INT1);
+    sleep_mode();
+}
+
+void leave_standby() {
+    _delay_ms(50);
+    GICR &= ~(1 << INT1);           // externen Interrupt sperren
+}
+
+
+uint8_t play_song_number(uint16_t song_num) 
+{
+    playing = 0;
+    
+    _delay_ms(100);
+    
+    free_plr();    
+    
+    PORTD |= ((uint8_t)4);
+    SPSR &= ~(1 << SPIF);
+    
+    _delay_ms(100);
+    
+    if (loader_mod_load_song_by_number(&module, song_num)) 
+        return 1;
+                
+    alloc_plr();
+    player_init(player, SAMPLE_RATE);
+    player_set_module(player, &module);
+                    
+    // prebuffer
+    sip = 0;
+    sop = 0;
+    ss = 0;
+    while (ss < BUFFER_SIZE) {
+        mix[sip++] = player_read(player);
+        sip &= (uint8_t)(BUFFER_SIZE - 1);
+        ss++;
+    }                    
+                    
+    playing = 1;
+    
+    return 0;
+}
 
 int main(void) 
 {
@@ -128,11 +199,16 @@ int main(void)
     SRAM_PORT_CTL |= (1 << SRAM_PIN_WE);
     SRAM_PORT_CTL &= ~(1 << SRAM_PIN_OE);
     
-    DDRD |= 0b11011100;
+    DDRD |= 0b11110100;
     
     DDRB |= 0x0f;
     PORTD &= ~((uint8_t)4);
     
+    PORTD |= 8;
+    
+    
+    should_enter_standby = 0;
+    button_timer = 0;
     i = 0;
 
     sip = 0;
@@ -146,23 +222,19 @@ int main(void)
     _delay_ms(1000);
     uart_puts_p(str_ok);
 
-
     
-    uart_puts_p(PSTR("init: sdcard ... "));
     
-    if(!sd_raw_init()) {
-#if DEBUG
-        uart_puts_p(PSTR("MMC/SD initialization failed\n"));
-#endif
-        uart_puts_p(str_err);
-        for(;;);
-    }
-    uart_puts_p(str_ok);
+    next_song_number = 0;
+    total_num_songs = loader_mod_get_song_count();
+    
+    uart_puts_p(PSTR("MODs on card found: "));
+    uart_putw_dec(total_num_songs);
+    uart_putc('\n');
   
 
-	s_ctr = 0;
-	r_ctr = 0;  
-	flag = 0;
+//  s_ctr = 0;
+//  r_ctr = 0;  
+    flag = 0;
 
 
 
@@ -174,8 +246,14 @@ int main(void)
     usart_in_command_complete = 0;
     //player_init(player, SAMPLE_RATE);
     //player_set_module(player, &module);
-    uart_puts_p(PSTR("init: 1337LofiPWMAudio ... "));
-    pwm_init();
+
+    uart_puts_p(PSTR("init: Peripheral Timer ... "));
+    peripheral_timer_init();
+    uart_puts_p(str_ok);
+
+
+    uart_puts_p(PSTR("init: Sample Timer ... "));
+    output_timer_init();
     uart_puts_p(str_ok);
 
 	for (i=0; i<32; i++) {
@@ -196,6 +274,12 @@ int main(void)
     uart_puts_p (str_prompt);
 
     
+    setup_standby();
+
+    enter_standby();
+    leave_standby();
+        
+    uart_puts_p(PSTR("aufgewacht\n"));
     
     for (;;) {
         //uint32_t addr;        
@@ -217,6 +301,31 @@ int main(void)
 	}
     	*/
 
+        if (button_released) {
+            button_released = 0;
+            if (should_enter_standby) {
+                uart_puts_p(PSTR("schlafengehen...\n"));
+                _delay_ms(50);
+                enter_standby();
+                leave_standby();
+                should_enter_standby = 0;
+            } else {
+                uart_puts_p(PSTR("next song...\n"));
+                anim_index = 0;
+                anim_direction = 1;
+                if (!play_song_number(next_song_number))
+                    next_song_number =  (next_song_number + 1) % total_num_songs;
+                anim_direction = 0;
+                
+            }
+        } 
+        
+        if (button_timer >= 1000) {
+            should_enter_standby = 1;
+        }
+        
+        
+        
         if (usart_in_command_complete) {
             usart_in_command_complete = 0;
             uart_putc('\n');
@@ -234,7 +343,7 @@ int main(void)
                     
                     SPSR &= ~(1 << SPIF);
                     
-                    loader_mod_loadfile(&module, &usart_in_buffer[2]);
+                    loader_mod_load_song_by_filename(&module, (char *)&usart_in_buffer[2]);
                     
                     alloc_plr();
                     player_init(player, SAMPLE_RATE);
@@ -294,30 +403,37 @@ int main(void)
 
 }
 
+
+
 ISR(TIMER0_OVF_vect) {
 
     uint16_t spi_data;
     
-    if (!playing)
+    
+
+    sample_count--;
+
+    if (!playing || should_enter_standby)
         return;
     
-    sample_count--;
+    
     
     if (sample_count == 2) {
         PORTB &= (uint8_t)0xf0;
         PORTB |= mix[sop].ledstate & (uint8_t)15;
     }
-    
+
+   
     if (sample_count == 0) {
         sample_count = SAMPLE_INTERVAL;
+        
+        
+        
         if (ss > 0) {
 
-            spi_data = (mix[sop].output) | 4096;// >> 4;
-            //spi_data |= 4096;
+            spi_data = (mix[sop].output) | 4096;
             
             PORTD &= ~((uint8_t)4);
-            
-            SPSR &= ~(1 << SPIF);
             
             SPDR = (uint8_t)(spi_data >> 8);
             /* wait for byte to be shifted out */
@@ -325,17 +441,52 @@ ISR(TIMER0_OVF_vect) {
             SPSR &= ~(1 << SPIF);   
             
             SPDR = (uint8_t)spi_data; //mix[sop].output;//s[sop];
-            //while(!(SPSR & (1 << SPIF)));
-            
+            while(!(SPSR & (1 << SPIF)));
+            SPSR &= ~(1 << SPIF);
+
+            PORTD |= ((uint8_t)4);
             
             sop++;
             sop &= (uint8_t)(BUFFER_SIZE - 1);
             ss--;
             
-            PORTD |= ((uint8_t)4);
-            
         }
     }
+}
+
+
+ISR(TIMER2_OVF_vect) {
+    
+    if (anim_direction) {
+        if ((anim_delay & 0b01111111) == 0) {
+            PORTB &= (uint8_t)0xf0;
+            PORTB |= pgm_read_byte_near(anim_loader + anim_index);
+            if (anim_index == 0)
+                anim_direction = 1;
+            if (anim_index == 7)
+                anim_direction = -1;
+
+            anim_index += anim_direction;
+        }
+        anim_delay++;
+    }
+    
+    if ((PIND & 8) == 0) {
+        if (button_timer < 1000)
+            button_timer++;
+    } else {
+        if (button_timer > 20) {
+            button_timer = 0;
+            button_released = 1;
+        }
+    }    
+}
+
+
+
+ISR(INT1_vect)
+{
+    // just to have a legal interrupt vector in case of wakeup interrupt
 }
 
 
@@ -348,7 +499,7 @@ ISR(USART_RXC_vect) {
             c = '\n';
 
     if (c == 8) {
-        if (usart_in_buffer > 0) {
+        if (usart_in_buffer_pos > 0) {
             usart_in_buffer[--usart_in_buffer_pos] = 0;
             uart_putc(c);
         }

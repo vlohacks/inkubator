@@ -7,5 +7,7 @@
 
 extern void sram_write_char(uint32_t * addr, unsigned char value);
 extern char sram_read_char(uint32_t * addr);
+extern void sram_write_char_i(uint32_t addr, unsigned char value);
+extern char sram_read_char_i(uint32_t addr);
 
 #endif // _SRAM_H

@@ -14,8 +14,8 @@
 //#define SRAM_PIN_LATCH1	1
 //#define SRAM_PIN_LATCH2	2
 
-#define SRAM_PIN_LATCH0	3
-#define SRAM_PIN_LATCH1	4
+#define SRAM_PIN_LATCH0	4
+#define SRAM_PIN_LATCH1	5
 
 #define SRAM_PIN_OE	6
 #define SRAM_PIN_WE	7

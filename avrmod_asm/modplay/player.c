@@ -36,10 +36,10 @@ void player_set_module(player_t * player, module_t * module)
     player->current_pattern = player->module->orders[player->current_order];
     player->current_row = 0;
     
-    player->next_order = 1;
+    player->next_order = 0;
     player->next_row = 0;
 
-    player->do_break = 0;       
+    player->do_break = 1;       
 
     player->pattern_delay = 0;
     player->pattern_delay_active = 0;
@@ -129,6 +129,7 @@ void player_new_tick(player_t * player)
 
             // lookup pattern to play in order list
             player->current_pattern = player->module->orders[player->current_order];
+            
         }
 
         // fetch new pattern data from module
@@ -136,27 +137,25 @@ void player_new_tick(player_t * player)
 
         //uart_putdw_hex(sram_addr);
         //uart_putc('\n');
-        player->ledstate = 0;
+        //player->ledstate = 0;
         player->ledstate = 16;
         for (k = 0; k < player->module->num_channels; k++) {
 
             uint8_t data[4];
 
-            data[0] = sram_read_char(&sram_addr); // sample
+            data[0] = sram_read_char_i(sram_addr); // sample
             sram_addr++;
-            data[1] = sram_read_char(&sram_addr); // period_index
+            data[1] = sram_read_char_i(sram_addr); // period_index
             sram_addr++;
-            data[2] = sram_read_char(&sram_addr); // effect
+            data[2] = sram_read_char_i(sram_addr); // effect
             sram_addr++;
-            data[3] = sram_read_char(&sram_addr); // effect params
+            data[3] = sram_read_char_i(sram_addr); // effect params
             sram_addr++;
 
-            /*
-            for (int i=0; i<4; i++)
-                uart_putc_hex(data[i]);
-            uart_putc('\n');
-            */
+            player->channels[k].current_effect_num = data[2];
+            player->channels[k].current_effect_value = data[3];
 
+            
             // special behaviour for sample / note delay
             if ((data[2] == 0xe) && ((data[3] >> 4) == 0xd) && (data[1] != 0xff)) {
                 player->channels[k].dest_sample_index = data[0];
@@ -176,9 +175,7 @@ void player_new_tick(player_t * player)
 
                 player->ledstate |= (uint8_t)(1<<(uint8_t)k);
 
-
-                //PORTB |= (unsigned char)(1 << k);
-                // special hack for note portamento... TODO remove here
+                // special hack for note portamento... 
                 if (data[2] == 0x3) {
                     player->channels[k].dest_period = player_period_by_index(data[1], player->module->sample_headers[player->channels[k].sample_index].finetune);  //pgm_read_byte(protracker_periods_finetune + data[1]);
                 } else {
@@ -186,8 +183,6 @@ void player_new_tick(player_t * player)
                         //player->channels[channel_num].period = data->period;
                         player->channels[k].period_index = data[1];
                         player->channels[k].sample_pos = 0;
-                        //player_channel_set_period(player, data[1], k);
-                        //player_channel_set_frequency(player, player->channels[k].period, k);
                     }
                 }
             }
@@ -203,35 +198,20 @@ void player_new_tick(player_t * player)
                 }
             }
 
-            player->channels[k].current_effect_num = data[2];
-            player->channels[k].current_effect_value = data[3];
-
-
         }
 
     }
 
     // maintain effects
-    for (k=0; k < player->module->num_channels; k++) {
-        /*
-        if (player->current_tick == 0) {
-            uart_putc_hex(player->current_pattern);
-            uart_putc(' ');
-            uart_putc_hex(player->current_row);
-            uart_putc(' ');
-            uart_putc_hex((uint8_t)k);
-            uart_putc('\n');
-        }
-        */
+    for (k=0; k < player->module->num_channels; k++) 
         (player->effect_map)[player->channels[k].current_effect_num](player, k);
-    }
+    
 
     if (player->current_tick == 1)
         player->ledstate = 16;
 
     player->current_tick++;
     player->tick_pos = player->tick_duration;
-    
 }
 
 

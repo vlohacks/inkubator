@@ -41,10 +41,10 @@
         <in>pff.h</in>
       </df>
       <in>debugasm.c</in>
+      <in>main.c</in>
       <in>sram.h</in>
       <in>sram.sx</in>
       <in>sram_defs.h</in>
-      <in>test.c</in>
       <in>uart.c</in>
       <in>uart.h</in>
     </df>
@@ -105,6 +105,13 @@
           </preprocessorList>
         </cTool>
       </folder>
+      <item path="main.c" ex="false" tool="0" flavor2="2">
+        <cTool>
+          <preprocessorList>
+            <Elem>F_CPU=16000000UL</Elem>
+          </preprocessorList>
+        </cTool>
+      </item>
       <item path="mmc/byteordering.c" ex="false" tool="0" flavor2="2">
         <cTool>
           <incDir>
@@ -240,13 +247,6 @@
         </cTool>
       </item>
       <item path="sram_defs.h" ex="false" tool="3" flavor2="0">
-      </item>
-      <item path="test.c" ex="false" tool="0" flavor2="2">
-        <cTool>
-          <preprocessorList>
-            <Elem>F_CPU=16000000UL</Elem>
-          </preprocessorList>
-        </cTool>
       </item>
       <item path="uart.c" ex="false" tool="0" flavor2="2">
         <cTool>
