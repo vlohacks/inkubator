@@ -126,7 +126,7 @@ no_loop:
     cpc     r21, r20
     brsh    skip_channel
 
-    
+    /* Did this calculation in the loader, so we can save lots of cycles
     ldd     r18, Z+12           // load sram sample offset
     ldd     r19, Z+13
     ldd     r20, Z+14
@@ -134,7 +134,7 @@ no_loop:
     add     r18, r16            // add the current position to it
     adc     r19, r17
     adc     r20, r21
-    
+    */
 
 
 
@@ -146,16 +146,16 @@ no_loop:
     out     _SFR_IO_ADDR(SRAM_PORT_CTL), r26
 
     // load first (MSB) byte to latch 0
-    out     _SFR_IO_ADDR(SRAM_PORT_ADDR), r20
+    out     _SFR_IO_ADDR(SRAM_PORT_ADDR), r21
     cbi     _SFR_IO_ADDR(SRAM_PORT_CTL), SRAM_PIN_LATCH0
 
     // load second (Middle) to latch 1
-    out     _SFR_IO_ADDR(SRAM_PORT_ADDR), r19
+    out     _SFR_IO_ADDR(SRAM_PORT_ADDR), r17
     cbi     _SFR_IO_ADDR(SRAM_PORT_CTL), SRAM_PIN_LATCH1
 
     // load last (LSB) byte and put it to the address lines which are
     // directly connected to the LSB of the SRAM IC
-    out     _SFR_IO_ADDR(SRAM_PORT_ADDR), r18
+    out     _SFR_IO_ADDR(SRAM_PORT_ADDR), r16
 
     // read byte from sram
     cbi     _SFR_IO_ADDR(SRAM_PORT_CTL), SRAM_PIN_OE
@@ -169,7 +169,7 @@ no_loop:
 
     ldd     r19, Y+9                                        // get volume of channel
 
-    mul     r18, r19                                        // multiply sample w/ volume
+    mulsu   r18, r19                                       // multiply sample w/ volume
     
     add     r24, r0                                         // mix to retval
     adc     r25, r1
@@ -218,6 +218,9 @@ all_channels_mixed:
     std     Y+4, r26            // store tick_pos 
     std     Y+5, r27
 
+
+    ldi     r26, 0x80
+    add     r25, r26               // to unsigned
 
     // Truncate mix to 12 bit resolution (ridiculous 4 bit shift)
     // so ein barrelshifter würde schon rulen... aber .. so könnts ja jeder :-)

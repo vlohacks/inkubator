@@ -27,7 +27,7 @@ volatile char usart_in_buffer[USART_IN_BUFFER_SIZE];
 volatile char usart_in_buffer_pos;
 volatile char usart_in_command_complete;
 
-volatile char sample_count;
+volatile uint8_t sample_count;
 volatile unsigned int button_timer;
 volatile uint8_t should_enter_standby;
 volatile uint8_t button_released;
@@ -38,12 +38,10 @@ uint16_t next_song_number;
 volatile char flag;
 volatile char playing;
 
-mix_t * mix;
-volatile uint8_t sip;
-volatile uint8_t sop;
+volatile mix_t * mix;
+uint8_t sip;
+uint8_t sop;
 volatile uint8_t ss;
-
-
 
 static const char PROGMEM str_err[] = " ERR\n";
 static const char PROGMEM str_ok[] = " OK\n";
@@ -141,6 +139,7 @@ void setup_standby() {
 }
 
 void enter_standby() {
+    PORTB &= (uint8_t)0xf0;
     _delay_ms(50);    
     GICR |= (1 << INT1);
     sleep_mode();
@@ -256,17 +255,16 @@ int main(void)
     output_timer_init();
     uart_puts_p(str_ok);
 
-	for (i=0; i<32; i++) {
-		char c = pgm_read_byte_near(PSTR("Hello World !!!!!!!!!!!!!!!!!!!!!") + i);
-		uint32_t x = (uint32_t)i;
-		sram_write_char(&x, c);
-	}
+    for (i=0; i<32; i++) {
+        char c = pgm_read_byte_near(PSTR("Hello World !!!!!!!!!!!!!!!!!!!!!") + i);
+        uint32_t x = (uint32_t)i;
+        sram_write_char(&x, c);
+    }
     
     for (i=0; i<32; i++) {
-                uint32_t x = (uint32_t)i;
-                char c = sram_read_char(&x);
-		uart_putc(c);
-
+        uint32_t x = (uint32_t)i;
+        char c = sram_read_char(&x);
+        uart_putc(c);
     }
     
     uart_puts_p(PSTR("\nVloSoft MOD Player OS 0.1 Ready\n\n"));
@@ -276,18 +274,20 @@ int main(void)
     
     setup_standby();
 
+    /*
     enter_standby();
     leave_standby();
         
     uart_puts_p(PSTR("aufgewacht\n"));
+    */
     
     for (;;) {
         //uint32_t addr;        
 
         if (playing) {
             if (ss < BUFFER_SIZE) {
-                mix[sip++] = player_read(player);
-                sip &= (uint8_t)(BUFFER_SIZE - 1);
+                mix[sip] = player_read(player);
+                sip = ((sip + 1) & (uint8_t)(BUFFER_SIZE - 1));
                 ss++;
 		//r_ctr++;
             }
@@ -408,27 +408,22 @@ int main(void)
 ISR(TIMER0_OVF_vect) {
 
     uint16_t spi_data;
-    
-    
 
     sample_count--;
 
     if (!playing || should_enter_standby)
         return;
     
-    
-    
     if (sample_count == 2) {
         PORTB &= (uint8_t)0xf0;
         PORTB |= mix[sop].ledstate & (uint8_t)15;
+        //if (ss == 0)
+        //    PORTB |= 0x0f;
     }
-
    
     if (sample_count == 0) {
         sample_count = SAMPLE_INTERVAL;
-        
-        
-        
+
         if (ss > 0) {
 
             spi_data = (mix[sop].output) | 4096;
@@ -440,14 +435,13 @@ ISR(TIMER0_OVF_vect) {
             while(!(SPSR & (1 << SPIF)));
             SPSR &= ~(1 << SPIF);   
             
-            SPDR = (uint8_t)spi_data; //mix[sop].output;//s[sop];
+            SPDR = (uint8_t)spi_data; 
             while(!(SPSR & (1 << SPIF)));
             SPSR &= ~(1 << SPIF);
 
             PORTD |= ((uint8_t)4);
             
-            sop++;
-            sop &= (uint8_t)(BUFFER_SIZE - 1);
+            sop = ((sop + 1) & (uint8_t)(BUFFER_SIZE - 1));
             ss--;
             
         }

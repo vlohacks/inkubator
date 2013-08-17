@@ -10,6 +10,7 @@
 #include <avr/pgmspace.h>
 #include <avr/sleep.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include "../mmc/fat.h"
 #include "../mmc/partition.h"
 #include "../mmc/sd_raw.h"
@@ -248,13 +249,50 @@ int loader_mod_loadfile(module_t * module, struct fat_file_struct * fd)
     uint16_t tmp16;
     uint32_t sram_addr = 0;
     uint8_t tmp[32];
+    int32_t tmp32;
     
     // Probe for standard MOD types
+    
+    tmp32 = 0x438;
+    fat_seek_file(fd, &tmp32, SEEK_SET);
+    fat_read_file(fd, tmp, 4);
+    tmp[4] = 0;
+
+    uart_puts_p(PSTR("Sig: "));
+    uart_puts((const char *)tmp);
+    uart_putc('\n'); 
+    
+    
     module->num_samples = 31;
     module->num_channels = 4;
+        
+    // determine MOD type by reading signature
+    
+    if (!strcmp(tmp, "M.K.") || !strcmp(tmp, "M!K!") || !strcmp(tmp, "FLT4")) {
+        module->num_channels = 4;
+    } else if (!strcmp(tmp, "6CHN")) {
+        module->num_channels = 6;
+    } else if (!strcmp(tmp, "8CHN")) {
+        module->num_channels = 8;
+    } else {
+        // no signature, assume Soundtracker
+        module->num_channels = 4;
+        module->num_samples = 15;
+    }
+    
+    
+    uart_puts_p(PSTR("Channels: "));
+    uart_putc_hex(module->num_channels);
+    uart_putc('\n');
 
-
+    uart_puts_p(PSTR("Samples: "));
+    uart_putc_hex(module->num_samples);
+    uart_putc('\n');
+    
     // now we know what kind of MOD it is, so we can start with REAL loading
+    tmp32 = 0;
+    fat_seek_file(fd, &tmp32, SEEK_SET);
+    
     r = fat_read_file(fd, tmp, 20);
     tmp[20] = 0;
     uart_puts_p(PSTR("Song: "));
@@ -265,41 +303,44 @@ int loader_mod_loadfile(module_t * module, struct fat_file_struct * fd)
     uart_puts_p(PSTR("Load sample header data...\n"));
 
     // load sample header data (aka song message :-))
-    for (i = 0; i < module->num_samples; i++) {
+    for (i = 0; i < 31; i++) {
         
         module_sample_header_t * hdr = &(module->sample_headers[i]);
         
-        r = fat_read_file(fd, tmp, 22);
-        tmp[22] = 0;
-        uart_puts((const char *)tmp);
-        uart_putc(' ');    
+        if (i < module->num_samples) {
+            r = fat_read_file(fd, tmp, 22);
+            tmp[22] = 0;
+            uart_puts((const char *)tmp);
+            uart_putc(' ');    
 
-        r = fat_read_file(fd, (uint8_t *)&tmp16, 2);
-        hdr->length = ((uint32_t)swap_endian_u16(tmp16)) << 1;
-        uart_putdw_dec(hdr->length);
-        uart_putc(' ');    
+            r = fat_read_file(fd, (uint8_t *)&tmp16, 2);
+            hdr->length = ((uint32_t)swap_endian_u16(tmp16)) << 1;
+            uart_putdw_dec(hdr->length);
+            uart_putc(' ');    
 
-        r = fat_read_file(fd, (uint8_t *)&tmp8, 1);
-        hdr->finetune = tmp8 & 0xf; 
-        uart_putc_hex(hdr->finetune);
-        uart_putc(' ');    
+            r = fat_read_file(fd, (uint8_t *)&tmp8, 1);
+            hdr->finetune = tmp8 & 0xf; 
+            uart_putc_hex(hdr->finetune);
+            uart_putc(' ');    
 
-        r = fat_read_file(fd, (uint8_t *)&tmp8, 1);
-        hdr->volume = tmp8;
-        uart_putc_hex(hdr->volume);
-        uart_putc(' ');    
+            r = fat_read_file(fd, (uint8_t *)&tmp8, 1);
+            hdr->volume = tmp8;
+            uart_putc_hex(hdr->volume);
+            uart_putc(' ');    
 
-        r = fat_read_file(fd, (uint8_t *)&tmp16, 2);
-        hdr->loop_start = ((uint32_t)swap_endian_u16(tmp16)) << 1;
-        uart_putdw_dec(hdr->loop_start);
-        uart_putc(' ');    
+            r = fat_read_file(fd, (uint8_t *)&tmp16, 2);
+            hdr->loop_start = ((uint32_t)swap_endian_u16(tmp16)) << 1;
+            uart_putdw_dec(hdr->loop_start);
+            uart_putc(' ');    
 
-        r = fat_read_file(fd, (uint8_t *)&tmp16, 2);
-        hdr->loop_length = ((uint32_t)swap_endian_u16(tmp16)) << 1;
-        hdr->loop_length += hdr->loop_start;    // in player we need to deal with the absolute pos
-        uart_putdw_dec(hdr->loop_length);
-        uart_putc('\n');    
-        
+            r = fat_read_file(fd, (uint8_t *)&tmp16, 2);
+            hdr->loop_length = ((uint32_t)swap_endian_u16(tmp16)) << 1;
+            hdr->loop_length += hdr->loop_start;    // in player we need to deal with the absolute pos
+            uart_putdw_dec(hdr->loop_length);
+            uart_putc('\n');    
+        } else {
+            hdr->length = 0;
+        }
         
     }
 
@@ -317,11 +358,13 @@ int loader_mod_loadfile(module_t * module, struct fat_file_struct * fd)
     // read signature again, just to move the filepointer - and only if the
     // file is not a STK not having a signature
 
-    r = fat_read_file(fd, tmp, 4);
-    tmp[4] = 0;
-    uart_puts_p(PSTR("Sig: "));
-    uart_puts((const char *)tmp);
-    uart_putc('\n');    
+    if (module->num_samples != 15) {
+        r = fat_read_file(fd, tmp, 4);
+        tmp[4] = 0;
+        uart_puts_p(PSTR("Sig: "));
+        uart_puts((const char *)tmp);
+        uart_putc('\n');    
+    }
     
     // determine number of patterns im MOD by fetching highest entry in orders
     module->num_patterns = 0;
@@ -333,7 +376,7 @@ int loader_mod_loadfile(module_t * module, struct fat_file_struct * fd)
 
     // load pattern data to sram
     uart_puts_p(PSTR("Load pattern data...\n"));
-    for (i = 0; i < module->num_patterns * 64 * 4; i++) {
+    for (i = 0; i < module->num_patterns * 64 * module->num_channels; i++) {
         r = fat_read_file(fd, tmp, 4);
         
         tmp8 = 0;
@@ -395,11 +438,31 @@ int loader_mod_loadfile(module_t * module, struct fat_file_struct * fd)
     }
     
     module->sample_headers[0].sram_offset = sram_addr;
+    /*
+    module->sample_headers[0].loop_start += sram_addr;
+    if (module->sample_headers[0].loop_length > 2)
+        module->sample_headers[0].loop_length += sram_addr;
+    module->sample_headers[0].length += sram_addr;
+    */
     
     for (i = 1; i < module->num_samples; i++) {
         module->sample_headers[i].sram_offset = module->sample_headers[i - 1].sram_offset + module->sample_headers[i - 1].length;
+        /*
+        module->sample_headers[i].loop_start += module->sample_headers[i].sram_offset;
+        if (module->sample_headers[i].loop_length > 2)
+                module->sample_headers[i].loop_length += module->sample_headers[i].sram_offset;
+        module->sample_headers[i].length += module->sample_headers[i].sram_offset;
+        */
     }
 
+    for (i = 0; i < module->num_samples; i++) {
+        module->sample_headers[i].loop_start += module->sample_headers[i].sram_offset;
+        if (module->sample_headers[i].loop_length > 2)
+            module->sample_headers[i].loop_length += module->sample_headers[i].sram_offset;
+        if (module->sample_headers[i].length > 2)
+            module->sample_headers[i].length += module->sample_headers[i].sram_offset;
+    }
+    
     uart_puts_p(PSTR("Load sample data...\n"));
     // load sample pcm data
     /*
@@ -419,14 +482,9 @@ int loader_mod_loadfile(module_t * module, struct fat_file_struct * fd)
     */
     
     while((r = fat_read_file(fd, (uint8_t *)&tmp, 32)) > 0) {
-
-        //tmp8 = (uint8_t)(((int16_t)tmp8) + 128);
-        for (k=0; k<r; k++) {
-            tmp8 = tmp[k];
-            tmp8 += 128;
-            sram_write_char_i(sram_addr, tmp8);
-            sram_addr++;
-        }    
+        for (k=0; k<r; k++) 
+            sram_write_char_i(sram_addr++, tmp[k]);
+        
     }
     r = 0;
 

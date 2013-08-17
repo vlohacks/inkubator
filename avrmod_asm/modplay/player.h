@@ -95,7 +95,7 @@ struct player_t {
     
     uint8_t ledstate;
     
-    player_channel_t channels[4];
+    player_channel_t channels[8];
     effect_callback_t effect_map[16];                     // effects map (module format specific)
 };
 

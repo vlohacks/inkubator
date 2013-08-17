@@ -281,7 +281,8 @@ void effects_mod_8_panning(player_t * player, int channel)
 void effects_mod_9_sampleoffset(player_t * player, int channel)
 {
     if (player->current_tick == 0) {
-        player->channels[channel].sample_pos = ((uint32_t)((((player->channels[channel].current_effect_value & 0xf0) >> 4) * 4096) + (player->channels[channel].current_effect_value & 0xf) * 256) << 8);
+        player->channels[channel].sample_pos = ((uint32_t)((((player->channels[channel].current_effect_value & 0xf0) >> 4) * 4096) + (player->channels[channel].current_effect_value & 0xf) * 256) << 8);// ;
+        player->channels[channel].sample_pos = ((uint32_t)((((player->channels[channel].current_effect_value & 0xf0) >> 4) * 4096) + (player->channels[channel].current_effect_value & 0xf) * 256) + player->module->sample_headers[player->channels[channel].sample_index].sram_offset) << 8;        
     }
 }
 
@@ -398,7 +399,8 @@ void effects_mod_e9_retriggersample(player_t * player, int channel)
         return;
     
     if ((player->current_tick % (player->channels[channel].current_effect_value & 0xf)) == 0)
-        player->channels[channel].sample_pos = 0;
+        //player->channels[channel].sample_pos = 0; //player->module->sample_headers[player->channels[channel].sample_index].sram_offset;
+        player->channels[channel].sample_pos = player->module->sample_headers[player->channels[channel].sample_index].sram_offset;
 }
 
 void effects_mod_ea_finevolumeup(player_t * player, int channel)
@@ -439,7 +441,8 @@ void effects_mod_ed_delaysample(player_t * player, int channel)
         
         if (player->channels[channel].dest_period > 0) {
             player->channels[channel].period = player->channels[channel].dest_period;
-            player->channels[channel].sample_pos = 0;
+            //player->channels[channel].sample_pos = 0; 
+            player->channels[channel].sample_pos = player->module->sample_headers[player->channels[channel].sample_index].sram_offset;
             player_channel_set_frequency(player, player->channels[channel].period, channel);
         }            
     }

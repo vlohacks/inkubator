@@ -166,8 +166,13 @@ void player_new_tick(player_t * player)
 
             // set sample
             if (data[0] != 0xff) {
-                player->channels[k].sample_index = data[0];
-                player->channels[k].volume = player->module->sample_headers[data[0]].volume;
+                if (player->module->sample_headers[data[0]].length > 2) {
+                    player->channels[k].sample_index = data[0];
+                    player->channels[k].volume = player->module->sample_headers[data[0]].volume;
+                } else {
+                    player->channels[k].sample_index = 0xff;
+                }
+                        
             }
 
             // set period (note)
@@ -182,7 +187,8 @@ void player_new_tick(player_t * player)
                     if (!(player->pattern_delay_active)) {
                         //player->channels[channel_num].period = data->period;
                         player->channels[k].period_index = data[1];
-                        player->channels[k].sample_pos = 0;
+                        //player->channels[k].sample_pos = 0; 
+                        player->channels[k].sample_pos = player->module->sample_headers[player->channels[k].sample_index].sram_offset << 8;
                     }
                 }
             }
